@@ -23,8 +23,8 @@ import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
 import ViewMenu from './components/layout/ViewMenu'
-import FileSaveButton from './components/layout/FileSaveButton'
-import { useFileStorage } from './hooks/useFileStorage'
+import CloudSaveStatus from './components/layout/CloudSaveStatus'
+import { useS3Storage } from './hooks/useS3Storage'
 
 // ---------------------------------------------------------------------------
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
@@ -177,7 +177,7 @@ export default function App() {
     bulkLoad,
   } = useTemplates()
 
-  const fileStorage = useFileStorage()
+  const s3Storage = useS3Storage()
 
   function buildSnapshot() {
     return { people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, assets, investments, subscriptions, creditCards }
@@ -215,21 +215,21 @@ export default function App() {
     if (Array.isArray(data.templates)) bulkLoad(data.templates)
   }
 
-  // When the file storage hook auto-restores on mount, apply the loaded data
+  // When S3 storage loads data on mount, apply it
   useEffect(() => {
-    if (fileStorage.restoreData) {
-      applyFullState(fileStorage.restoreData)
-      fileStorage.clearRestoreData()
+    if (s3Storage.restoreData) {
+      applyFullState(s3Storage.restoreData)
+      s3Storage.clearRestoreData()
     }
-  }, [fileStorage.restoreData]) // eslint-disable-line
+  }, [s3Storage.restoreData]) // eslint-disable-line
 
-  // Auto-save to file on every state change (debounced 1.5 s)
+  // Auto-save to S3 on every state change (debounced 1.5 s)
   const autoSaveTimer = useRef(null)
   useEffect(() => {
-    if (!fileStorage.fileHandle || fileStorage.status === 'needs-permission') return
+    if (s3Storage.status === 'loading') return
     clearTimeout(autoSaveTimer.current)
     autoSaveTimer.current = setTimeout(() => {
-      fileStorage.saveToFile(buildFullState())
+      s3Storage.save(buildFullState())
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
   }, [people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, assets, investments, subscriptions, creditCards, templates]) // eslint-disable-line
@@ -337,11 +337,7 @@ export default function App() {
         rightSlot={
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <FileSaveButton
-              storage={fileStorage}
-              buildState={buildFullState}
-              onLoad={applyFullState}
-            />
+            <CloudSaveStatus storage={s3Storage} />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
             <button
               onClick={() => setPresentationMode(true)}
