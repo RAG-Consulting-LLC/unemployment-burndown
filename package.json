@@ -9,15 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dayjs": "^1.11.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "recharts": "^2.15.0",
-    "dayjs": "^1.11.13"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.8",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.3.5",
     "tailwindcss": "^4.1.8",
-    "@tailwindcss/vite": "^4.1.8"
+    "vite": "^6.3.5"
   }
 }
