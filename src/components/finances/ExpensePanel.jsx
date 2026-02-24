@@ -1,6 +1,7 @@
 import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
+import AssigneeSelect from '../people/AssigneeSelect'
 
 function TrashIcon() {
   return (
@@ -10,7 +11,7 @@ function TrashIcon() {
   )
 }
 
-export default function ExpensePanel({ expenses, onChange }) {
+export default function ExpensePanel({ expenses, onChange, people = [] }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(expenses, onChange)
 
   function updateExpense(id, field, val) {
@@ -22,7 +23,7 @@ export default function ExpensePanel({ expenses, onChange }) {
   }
 
   function addExpense() {
-    onChange([...expenses, { id: Date.now(), category: 'New Expense', monthlyAmount: 0, essential: false }])
+    onChange([...expenses, { id: Date.now(), category: 'New Expense', monthlyAmount: 0, essential: false, assignedTo: null }])
   }
 
   const totalMonthly = expenses.reduce((sum, e) => sum + (Number(e.monthlyAmount) || 0), 0)
@@ -31,11 +32,12 @@ export default function ExpensePanel({ expenses, onChange }) {
   return (
     <div className="space-y-3">
       {/* Column headers */}
-      <div className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px' }}>
+      <div className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}>
         <span></span>
         <span>Category</span>
         <span>Monthly</span>
         <span className="text-center">Essential</span>
+        <span></span>
         <span></span>
       </div>
 
@@ -51,7 +53,7 @@ export default function ExpensePanel({ expenses, onChange }) {
                 ? 'ring-2 ring-blue-500/50 ring-inset'
                 : ''
             }`}
-            style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px' }}
+            style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}
             {...getItemProps(expense.id)}
           >
             {/* Drag handle */}
@@ -91,6 +93,11 @@ export default function ExpensePanel({ expenses, onChange }) {
                 {expense.essential ? 'Yes' : 'No'}
               </button>
             </div>
+            <AssigneeSelect
+              people={people}
+              value={expense.assignedTo ?? null}
+              onChange={val => updateExpense(expense.id, 'assignedTo', val)}
+            />
             <button
               onClick={() => deleteExpense(expense.id)}
               className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"

@@ -1,6 +1,7 @@
 import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
+import AssigneeSelect from '../people/AssigneeSelect'
 
 function TrashIcon() {
   return (
@@ -10,7 +11,7 @@ function TrashIcon() {
   )
 }
 
-export default function AssetsPanel({ assets, onChange }) {
+export default function AssetsPanel({ assets, onChange, people = [] }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(assets, onChange)
 
   function updateAsset(id, field, val) {
@@ -22,7 +23,7 @@ export default function AssetsPanel({ assets, onChange }) {
   }
 
   function addAsset() {
-    onChange([...assets, { id: Date.now(), name: 'New Asset', estimatedValue: 0, includedInWhatIf: false }])
+    onChange([...assets, { id: Date.now(), name: 'New Asset', estimatedValue: 0, includedInWhatIf: false, assignedTo: null }])
   }
 
   const includedTotal = assets
@@ -43,12 +44,13 @@ export default function AssetsPanel({ assets, onChange }) {
           {/* Column headers */}
           <div
             className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
-            style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px' }}
+            style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px 32px' }}
           >
             <span></span>
             <span>Asset</span>
             <span>Est. Value</span>
             <span className="text-center">Sell?</span>
+            <span></span>
             <span></span>
           </div>
 
@@ -64,7 +66,7 @@ export default function AssetsPanel({ assets, onChange }) {
                     ? 'ring-2 ring-violet-500/50 ring-inset'
                     : ''
                 }`}
-                style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px' }}
+                style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px 32px' }}
                 {...getItemProps(asset.id)}
               >
                 <div
@@ -112,6 +114,11 @@ export default function AssetsPanel({ assets, onChange }) {
                     {asset.includedInWhatIf ? '✓ Sell' : 'Keep'}
                   </button>
                 </div>
+                <AssigneeSelect
+                  people={people}
+                  value={asset.assignedTo ?? null}
+                  onChange={val => updateAsset(asset.id, 'assignedTo', val)}
+                />
                 <button
                   onClick={() => deleteAsset(asset.id)}
                   className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"

@@ -74,6 +74,32 @@ export function useTemplates() {
     return t ? t.snapshot : null
   }, [templates])
 
+  // Replace all templates at once (used when loading from a file)
+  const bulkLoad = useCallback((newTemplates) => {
+    const arr = Array.isArray(newTemplates) ? newTemplates : []
+    setTemplates(arr)
+    // Don't write to localStorage here — file is the source of truth
+  }, [])
+
+  // Duplicate a template — inserts copy directly after the original
+  const duplicate = useCallback((id) => {
+    const idx = templates.findIndex(t => t.id === id)
+    if (idx === -1) return
+    const original = templates[idx]
+    const copy = {
+      ...original,
+      id: Date.now(),
+      name: `${original.name} (copy)`,
+      savedAt: new Date().toISOString(),
+    }
+    const next = [
+      ...templates.slice(0, idx + 1),
+      copy,
+      ...templates.slice(idx + 1),
+    ]
+    persist(next)
+  }, [templates])
+
   return {
     templates,
     activeTemplateId,
@@ -83,5 +109,7 @@ export function useTemplates() {
     rename,
     remove,
     getSnapshot,
+    duplicate,
+    bulkLoad,
   }
 }

@@ -1,6 +1,7 @@
 import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
+import AssigneeSelect from '../people/AssigneeSelect'
 
 function TrashIcon() {
   return (
@@ -10,7 +11,7 @@ function TrashIcon() {
   )
 }
 
-export default function InvestmentsPanel({ investments, onChange }) {
+export default function InvestmentsPanel({ investments, onChange, people = [] }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(investments, onChange)
 
   function update(id, field, val) {
@@ -24,7 +25,7 @@ export default function InvestmentsPanel({ investments, onChange }) {
   function add() {
     onChange([
       ...investments,
-      { id: Date.now(), name: 'New Investment', description: '', monthlyAmount: 0, active: true },
+      { id: Date.now(), name: 'New Investment', description: '', monthlyAmount: 0, active: true, assignedTo: null },
     ])
   }
 
@@ -43,78 +44,87 @@ export default function InvestmentsPanel({ investments, onChange }) {
           No investments yet. Add things like 401k contributions, brokerage deposits, crypto DCA, or Roth IRA.
         </p>
       ) : (
-        <div className="space-y-3">
+        <>
+        {/* Column headers */}
+        <div
+          className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
+          style={{ gridTemplateColumns: '20px 1fr 120px 72px 32px 32px' }}
+        >
+          <span></span>
+          <span>Investment</span>
+          <span>Monthly</span>
+          <span className="text-center">Status</span>
+          <span></span>
+          <span></span>
+        </div>
+        <div className="space-y-2">
           {investments.map(inv => (
             <div
               key={inv.id}
-              className={`rounded-lg border p-3 transition-all ${
-                inv.active ? 'bg-teal-950/20 border-teal-700/40' : 'bg-gray-800/40 border-gray-700/50 opacity-60'
+              className={`grid items-center gap-2 rounded-lg transition-all ${
+                !inv.active ? 'opacity-50' : ''
               } ${draggingId === inv.id ? 'opacity-40' : ''} ${
                 overedId === inv.id && draggingId !== inv.id ? 'ring-2 ring-teal-500/50 ring-inset' : ''
               }`}
+              style={{ gridTemplateColumns: '20px 1fr 120px 72px 32px 32px' }}
               {...getItemProps(inv.id)}
             >
-              {/* Row 1: drag handle + name + amount + toggle + delete */}
-              <div className="grid items-center gap-2" style={{ gridTemplateColumns: '20px 1fr 120px 72px 32px' }}>
-                <div
-                  className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-                  {...dragHandleProps(inv.id)}
-                >
-                  <DragHandle />
-                </div>
-                <input
-                  type="text"
-                  value={inv.name}
-                  onChange={e => update(inv.id, 'name', e.target.value)}
-                  className={`bg-gray-700 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none w-full transition-colors ${
-                    inv.active ? 'border-teal-700/50 focus:border-teal-400' : 'border-gray-600 focus:border-gray-500'
-                  }`}
-                  placeholder="e.g. Roth IRA, 401k, BTC DCA"
-                />
-                <div className={`flex items-center bg-gray-700 border rounded-lg px-2 py-2 transition-colors ${
-                  inv.active ? 'border-teal-700/50 focus-within:border-teal-400' : 'border-gray-600 focus-within:border-gray-500'
-                }`}>
-                  <span className="text-gray-500 text-sm mr-1">$</span>
-                  <input
-                    type="number"
-                    value={inv.monthlyAmount}
-                    onChange={e => update(inv.id, 'monthlyAmount', Number(e.target.value))}
-                    className="bg-transparent text-white text-sm w-full outline-none"
-                    min="0"
-                    step="10"
-                  />
-                  <span className="text-gray-600 text-xs ml-1 shrink-0">/mo</span>
-                </div>
-                <button
-                  onClick={() => update(inv.id, 'active', !inv.active)}
-                  className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    inv.active
-                      ? 'bg-teal-600/40 text-teal-300 border border-teal-500/60'
-                      : 'bg-gray-700 text-gray-500 border border-gray-600 hover:border-gray-400'
-                  }`}
-                  title={inv.active ? 'Pause this investment' : 'Resume this investment'}
-                >
-                  {inv.active ? '● On' : '○ Off'}
-                </button>
-                <button
-                  onClick={() => remove(inv.id)}
-                  className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-                  title="Remove investment"
-                >
-                  <TrashIcon />
-                </button>
+              <div
+                className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
+                {...dragHandleProps(inv.id)}
+              >
+                <DragHandle />
               </div>
-              {/* Row 2: description */}
               <input
                 type="text"
-                value={inv.description}
-                onChange={e => update(inv.id, 'description', e.target.value)}
-                className="mt-2 w-full bg-transparent border-0 border-b border-gray-700 px-1 py-1 text-gray-500 text-xs focus:outline-none focus:border-gray-500 placeholder-gray-700 transition-colors"
-                placeholder="Description (optional) — e.g. Fidelity target date 2055, 6% of salary match"
+                value={inv.name}
+                onChange={e => update(inv.id, 'name', e.target.value)}
+                className={`bg-gray-700 border rounded-lg px-3 py-2 text-white text-sm focus:outline-none w-full transition-colors ${
+                  inv.active ? 'border-teal-700/50 focus:border-teal-400' : 'border-gray-600 focus:border-gray-500'
+                }`}
+                placeholder="e.g. Roth IRA, 401k, BTC DCA"
               />
+              <div className={`flex items-center bg-gray-700 border rounded-lg px-2 py-2 transition-colors ${
+                inv.active ? 'border-teal-700/50 focus-within:border-teal-400' : 'border-gray-600 focus-within:border-gray-500'
+              }`}>
+                <span className="text-gray-500 text-sm mr-1">$</span>
+                <input
+                  type="number"
+                  value={inv.monthlyAmount}
+                  onChange={e => update(inv.id, 'monthlyAmount', Number(e.target.value))}
+                  className="bg-transparent text-white text-sm w-full outline-none"
+                  min="0"
+                  step="10"
+                />
+                <span className="text-gray-600 text-xs ml-1 shrink-0">/mo</span>
+              </div>
+              <button
+                onClick={() => update(inv.id, 'active', !inv.active)}
+                className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  inv.active
+                    ? 'bg-teal-600/40 text-teal-300 border border-teal-500/60'
+                    : 'bg-gray-700 text-gray-500 border border-gray-600 hover:border-gray-400'
+                }`}
+                title={inv.active ? 'Pause this investment' : 'Resume this investment'}
+              >
+                {inv.active ? '● On' : '○ Off'}
+              </button>
+              <AssigneeSelect
+                people={people}
+                value={inv.assignedTo ?? null}
+                onChange={val => update(inv.id, 'assignedTo', val)}
+              />
+              <button
+                onClick={() => remove(inv.id)}
+                className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
+                title="Remove investment"
+              >
+                <TrashIcon />
+              </button>
             </div>
           ))}
         </div>
+        </>
       )}
 
       <button

@@ -1,8 +1,12 @@
 export const DEFAULTS = {
+  people: [
+    { id: 1, name: 'Me',      color: 'blue'   },
+    { id: 2, name: 'Partner', color: 'purple' },
+  ],
   // savingsAccounts replaces the single currentSavings number
   savingsAccounts: [
-    { id: 1, name: 'Checking Account', amount: 5000 },
-    { id: 2, name: 'Savings Account',  amount: 10000 },
+    { id: 1, name: 'Checking Account', amount: 5000,  active: true, assignedTo: null },
+    { id: 2, name: 'Savings Account',  amount: 10000, active: true, assignedTo: null },
   ],
   furloughDate: '2026-02-21',
   unemployment: {
@@ -11,19 +15,35 @@ export const DEFAULTS = {
     durationWeeks: 26,
   },
   expenses: [
-    { id: 1, category: 'Rent / Mortgage',    monthlyAmount: 1500, essential: true },
-    { id: 2, category: 'Food & Groceries',   monthlyAmount: 400,  essential: true },
-    { id: 3, category: 'Utilities',          monthlyAmount: 150,  essential: true },
-    { id: 4, category: 'Health / Insurance', monthlyAmount: 250,  essential: true },
-    { id: 5, category: 'Transportation',     monthlyAmount: 200,  essential: false },
-    { id: 6, category: 'Subscriptions',      monthlyAmount: 80,   essential: false },
-    { id: 7, category: 'Misc / Personal',    monthlyAmount: 120,  essential: false },
+    { id: 1, category: 'Rent / Mortgage',    monthlyAmount: 1500, essential: true,  assignedTo: null },
+    { id: 2, category: 'Food & Groceries',   monthlyAmount: 400,  essential: true,  assignedTo: null },
+    { id: 3, category: 'Utilities',          monthlyAmount: 150,  essential: true,  assignedTo: null },
+    { id: 4, category: 'Health / Insurance', monthlyAmount: 250,  essential: true,  assignedTo: null },
+    { id: 5, category: 'Transportation',     monthlyAmount: 200,  essential: false, assignedTo: null },
+    { id: 6, category: 'Subscriptions',      monthlyAmount: 80,   essential: false, assignedTo: null },
+    { id: 7, category: 'Misc / Personal',    monthlyAmount: 120,  essential: false, assignedTo: null },
   ],
   whatIf: {
     expenseReductionPct: 0,
     sideIncomeMonthly: 0,
+    emergencyFloor: 0,
+    benefitDelayWeeks: 0,
+    benefitCutWeeks: 0,
+    freezeDate: '',
+    jobOfferSalary: 0,
+    jobOfferStartDate: '',
+    freelanceRamp: [],
+    partnerIncomeMonthly: 0,
+    partnerStartDate: '',
   },
   oneTimeExpenses: [],
+  oneTimeIncome: [],
   assets: [],
   investments: [],
+  subscriptions: [
+    { id: 101, name: 'Netflix',  monthlyAmount: 17,  active: true, assignedTo: null },
+    { id: 102, name: 'Spotify',  monthlyAmount: 11,  active: true, assignedTo: null },
+    { id: 103, name: 'Internet', monthlyAmount: 60,  active: true, assignedTo: null },
+  ],
+  creditCards: [],
 }

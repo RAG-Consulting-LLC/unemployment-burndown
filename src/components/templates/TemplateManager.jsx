@@ -41,6 +41,15 @@ function CheckIcon() {
   )
 }
 
+function DuplicateIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+      <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+      <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+    </svg>
+  )
+}
+
 export default function TemplateManager({
   templates,
   activeTemplateId,
@@ -49,6 +58,7 @@ export default function TemplateManager({
   onSaveNew,
   onRename,
   onDelete,
+  onDuplicate,
 }) {
   const [open, setOpen] = useState(false)
   // 'idle' | 'saving-new' | 'renaming:{id}'
@@ -140,11 +150,6 @@ export default function TemplateManager({
 
   return (
     <div className="flex items-center gap-2" ref={dropdownRef}>
-      {/* Furlough badge */}
-      <span className="hidden sm:inline text-xs bg-amber-900/60 text-amber-300 border border-amber-700/50 px-3 py-1 rounded-full font-medium">
-        On Furlough
-      </span>
-
       {/* Save button */}
       <button
         onClick={handleSaveClick}
@@ -260,6 +265,13 @@ export default function TemplateManager({
                           title="Rename"
                         >
                           <PencilIcon />
+                        </button>
+                        <button
+                          onClick={() => { onDuplicate(t.id); setConfirmDeleteId(null) }}
+                          className="p-1 text-gray-500 hover:text-emerald-400 rounded transition-colors"
+                          title="Duplicate"
+                        >
+                          <DuplicateIcon />
                         </button>
                         <button
                           onClick={() => handleDelete(t.id)}

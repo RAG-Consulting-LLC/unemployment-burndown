@@ -1,1 +1,83 @@
 @import "tailwindcss";
+
+/* ─── Theme tokens ──────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --bg-page:          #111827; /* gray-900 */
+  --bg-card:          #1f2937; /* gray-800 */
+  --bg-input:         #111827; /* gray-900 */
+  --bg-hover:         #374151; /* gray-700 */
+
+  --border-default:   #374151; /* gray-700 */
+  --border-subtle:    rgba(255,255,255,0.06);
+
+  --text-primary:     #f9fafb; /* gray-50  */
+  --text-secondary:   #9ca3af; /* gray-400 */
+  --text-muted:       #6b7280; /* gray-500 */
+  --text-faint:       #374151; /* gray-700 */
+
+  --accent-blue:      #3b82f6;
+  --accent-emerald:   #34d399;
+  --accent-teal:      #2dd4bf;
+  --accent-red:       #f87171;
+  --accent-amber:     #fbbf24;
+
+  --header-bg:        rgba(17,24,39,0.75);  /* gray-900/75 */
+  --shadow-header:    rgba(255,255,255,0.05);
+
+  /* chart */
+  --chart-grid:       rgba(255,255,255,0.06);
+  --chart-tick:       #6b7280;
+  --chart-tooltip-bg: #1f2937;
+}
+
+[data-theme="light"] {
+  --bg-page:          #f3f4f6; /* gray-100 */
+  --bg-card:          #ffffff;
+  --bg-input:         #f9fafb; /* gray-50  */
+  --bg-hover:         #e5e7eb; /* gray-200 */
+
+  --border-default:   #d1d5db; /* gray-300 */
+  --border-subtle:    rgba(0,0,0,0.06);
+
+  --text-primary:     #111827; /* gray-900 */
+  --text-secondary:   #4b5563; /* gray-600 */
+  --text-muted:       #6b7280; /* gray-500 */
+  --text-faint:       #d1d5db; /* gray-300 */
+
+  --accent-blue:      #2563eb;
+  --accent-emerald:   #059669;
+  --accent-teal:      #0d9488;
+  --accent-red:       #dc2626;
+  --accent-amber:     #d97706;
+
+  --header-bg:        rgba(255,255,255,0.85);
+  --shadow-header:    rgba(0,0,0,0.06);
+
+  /* chart */
+  --chart-grid:       rgba(0,0,0,0.07);
+  --chart-tick:       #9ca3af;
+  --chart-tooltip-bg: #ffffff;
+}
+
+/* ─── Base wiring ───────────────────────────────────────────────────── */
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ─── Utility classes that consume the tokens ───────────────────────── */
+
+.theme-page        { background-color: var(--bg-page); }
+.theme-card        { background-color: var(--bg-card); border-color: var(--border-default); }
+.theme-input       { background-color: var(--bg-input); border-color: var(--border-default); color: var(--text-primary); }
+.theme-input:focus { outline: none; border-color: var(--accent-blue); }
+.theme-hover:hover { background-color: var(--bg-hover); }
+
+.text-primary   { color: var(--text-primary)   !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-muted     { color: var(--text-muted)     !important; }
+.text-faint     { color: var(--text-faint)     !important; }

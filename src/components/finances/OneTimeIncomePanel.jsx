@@ -11,32 +11,31 @@ function TrashIcon() {
   )
 }
 
-export default function OneTimeExpensePanel({ expenses, onChange, people = [] }) {
-  // Note: one-time expenses support manual drag reorder (overrides date sort for display)
-  const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(expenses, onChange)
+export default function OneTimeIncomePanel({ items, onChange, people = [] }) {
+  const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(items, onChange)
 
-  function updateExpense(id, field, val) {
-    onChange(expenses.map(e => e.id === id ? { ...e, [field]: val } : e))
+  function updateItem(id, field, val) {
+    onChange(items.map(item => item.id === id ? { ...item, [field]: val } : item))
   }
 
-  function deleteExpense(id) {
-    onChange(expenses.filter(e => e.id !== id))
+  function deleteItem(id) {
+    onChange(items.filter(item => item.id !== id))
   }
 
-  function addExpense() {
+  function addItem() {
     onChange([
-      ...expenses,
-      { id: Date.now(), description: 'New Expense', date: '2026-03-01', amount: 0, assignedTo: null },
+      ...items,
+      { id: Date.now(), description: 'Tax Refund', date: '2026-04-01', amount: 0, assignedTo: null },
     ])
   }
 
-  const total = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+  const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
 
   return (
     <div className="space-y-3">
-      {expenses.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-sm text-gray-600 text-center py-4">
-          No one-time expenses yet. Add things like car repairs, medical bills, or annual subscriptions.
+          No one-time income yet. Add things like tax refunds, bonuses, gifts, or asset sales.
         </p>
       ) : (
         <>
@@ -53,46 +52,46 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
             <span></span>
           </div>
 
-          {/* Expense rows */}
+          {/* Income rows */}
           <div className="space-y-2">
-            {expenses.map(expense => (
+            {items.map(item => (
               <div
-                key={expense.id}
+                key={item.id}
                 className={`grid items-center gap-2 rounded-lg transition-all ${
-                  draggingId === expense.id ? 'opacity-40' : ''
+                  draggingId === item.id ? 'opacity-40' : ''
                 } ${
-                  overedId === expense.id && draggingId !== expense.id
-                    ? 'ring-2 ring-orange-500/50 ring-inset'
+                  overedId === item.id && draggingId !== item.id
+                    ? 'ring-2 ring-emerald-500/50 ring-inset'
                     : ''
                 }`}
                 style={{ gridTemplateColumns: '20px 1fr 130px 110px 32px 32px' }}
-                {...getItemProps(expense.id)}
+                {...getItemProps(item.id)}
               >
                 <div
                   className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-                  {...dragHandleProps(expense.id)}
+                  {...dragHandleProps(item.id)}
                 >
                   <DragHandle />
                 </div>
                 <input
                   type="text"
-                  value={expense.description}
-                  onChange={e => updateExpense(expense.id, 'description', e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
+                  value={item.description}
+                  onChange={e => updateItem(item.id, 'description', e.target.value)}
+                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500 w-full"
                   placeholder="Description"
                 />
                 <input
                   type="date"
-                  value={expense.date}
-                  onChange={e => updateExpense(expense.id, 'date', e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
+                  value={item.date}
+                  onChange={e => updateItem(item.id, 'date', e.target.value)}
+                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500 w-full"
                 />
-                <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-                  <span className="text-gray-500 text-sm mr-1">$</span>
+                <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-emerald-500">
+                  <span className="text-emerald-500 text-sm mr-1">+$</span>
                   <input
                     type="number"
-                    value={expense.amount}
-                    onChange={e => updateExpense(expense.id, 'amount', Number(e.target.value))}
+                    value={item.amount}
+                    onChange={e => updateItem(item.id, 'amount', Number(e.target.value))}
                     className="bg-transparent text-white text-sm w-full outline-none"
                     min="0"
                     step="10"
@@ -100,11 +99,11 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
                 </div>
                 <AssigneeSelect
                   people={people}
-                  value={expense.assignedTo ?? null}
-                  onChange={val => updateExpense(expense.id, 'assignedTo', val)}
+                  value={item.assignedTo ?? null}
+                  onChange={val => updateItem(item.id, 'assignedTo', val)}
                 />
                 <button
-                  onClick={() => deleteExpense(expense.id)}
+                  onClick={() => deleteItem(item.id)}
                   className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
                 >
                   <TrashIcon />
@@ -116,27 +115,27 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
       )}
 
       <button
-        onClick={addExpense}
-        className="w-full py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:border-orange-500 hover:text-orange-400 text-sm transition-colors"
+        onClick={addItem}
+        className="w-full py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:border-emerald-500 hover:text-emerald-400 text-sm transition-colors"
       >
-        + Add One-Time Expense
+        + Add One-Time Income
       </button>
 
-      {expenses.length > 0 && (
-        <div className="bg-gray-700/40 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">
+      {items.length > 0 && (
+        <div className="bg-emerald-900/20 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Total one-time: </span>
-            <span className="text-orange-300 font-semibold">{formatCurrency(total)}</span>
+            <span className="text-gray-500">Total injections: </span>
+            <span className="text-emerald-400 font-semibold">+{formatCurrency(total)}</span>
           </div>
           <div>
             <span className="text-gray-500">Count: </span>
-            <span className="text-white font-semibold">{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</span>
+            <span className="text-white font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
       )}
 
       <p className="text-xs text-gray-600">
-        One-time expenses are deducted on their specific date. Drag <span className="text-gray-500">⠿</span> to reorder.
+        One-time income is added to your balance on the specified date. Drag <span className="text-gray-500">⠿</span> to reorder.
       </p>
     </div>
   )

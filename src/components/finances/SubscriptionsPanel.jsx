@@ -11,28 +11,32 @@ function TrashIcon() {
   )
 }
 
-export default function SavingsPanel({ accounts, onChange, people = [] }) {
-  const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(accounts, onChange)
+export default function SubscriptionsPanel({ subscriptions, onChange, people = [] }) {
+  const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(subscriptions, onChange)
 
-  function updateAccount(id, field, val) {
-    onChange(accounts.map(a => a.id === id ? { ...a, [field]: val } : a))
+  function updateSub(id, field, val) {
+    onChange(subscriptions.map(s => s.id === id ? { ...s, [field]: val } : s))
   }
 
-  function toggleAccount(id) {
-    onChange(accounts.map(a => a.id === id ? { ...a, active: a.active === false ? true : false } : a))
+  function toggleSub(id) {
+    onChange(subscriptions.map(s => s.id === id ? { ...s, active: s.active === false ? true : false } : s))
   }
 
-  function deleteAccount(id) {
-    onChange(accounts.filter(a => a.id !== id))
+  function deleteSub(id) {
+    onChange(subscriptions.filter(s => s.id !== id))
   }
 
-  function addAccount() {
-    onChange([...accounts, { id: Date.now(), name: 'New Account', amount: 0, active: true, assignedTo: null }])
+  function addSub() {
+    onChange([...subscriptions, { id: Date.now(), name: 'New Subscription', monthlyAmount: 0, active: true, assignedTo: null }])
   }
 
-  const total = accounts
-    .filter(a => a.active !== false)
-    .reduce((sum, a) => sum + (Number(a.amount) || 0), 0)
+  const activeTotal = subscriptions
+    .filter(s => s.active !== false)
+    .reduce((sum, s) => sum + (Number(s.monthlyAmount) || 0), 0)
+
+  const inactiveTotal = subscriptions
+    .filter(s => s.active === false)
+    .reduce((sum, s) => sum + (Number(s.monthlyAmount) || 0), 0)
 
   return (
     <div className="space-y-3">
@@ -43,38 +47,38 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
       >
         <span></span>
         <span></span>
-        <span>Account / Source</span>
-        <span>Balance</span>
+        <span>Service / Name</span>
+        <span>Monthly Cost</span>
         <span></span>
         <span></span>
       </div>
 
-      {/* Account rows */}
+      {/* Subscription rows */}
       <div className="space-y-2">
-        {accounts.map(account => {
-          const isActive = account.active !== false
+        {subscriptions.map(sub => {
+          const isActive = sub.active !== false
           return (
             <div
-              key={account.id}
+              key={sub.id}
               className={`grid items-center gap-2 rounded-lg transition-all ${
-                draggingId === account.id ? 'opacity-40' : ''
+                draggingId === sub.id ? 'opacity-40' : ''
               } ${
-                overedId === account.id && draggingId !== account.id
+                overedId === sub.id && draggingId !== sub.id
                   ? 'ring-2 ring-blue-500/50 ring-inset'
                   : ''
               } ${!isActive ? 'opacity-50' : ''}`}
               style={{ gridTemplateColumns: '20px 32px 1fr 130px 32px 32px' }}
-              {...getItemProps(account.id)}
+              {...getItemProps(sub.id)}
             >
               <div
                 className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-                {...dragHandleProps(account.id)}
+                {...dragHandleProps(sub.id)}
               >
                 <DragHandle />
               </div>
               <button
-                onClick={() => toggleAccount(account.id)}
-                title={isActive ? 'Exclude from total' : 'Include in total'}
+                onClick={() => toggleSub(sub.id)}
+                title={isActive ? 'Pause subscription' : 'Include subscription'}
                 className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 relative ${
                   isActive ? 'bg-blue-500' : 'bg-gray-600'
                 }`}
@@ -87,31 +91,31 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
               </button>
               <input
                 type="text"
-                value={account.name}
-                onChange={e => updateAccount(account.id, 'name', e.target.value)}
+                value={sub.name}
+                onChange={e => updateSub(sub.id, 'name', e.target.value)}
                 className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-                placeholder="e.g. Chase Checking"
+                placeholder="e.g. Netflix"
               />
               <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
                 <span className="text-gray-500 text-sm mr-1">$</span>
                 <input
                   type="number"
-                  value={account.amount}
-                  onChange={e => updateAccount(account.id, 'amount', Number(e.target.value))}
+                  value={sub.monthlyAmount}
+                  onChange={e => updateSub(sub.id, 'monthlyAmount', Number(e.target.value))}
                   className="bg-transparent text-white text-sm w-full outline-none"
                   min="0"
-                  step="100"
+                  step="1"
                 />
               </div>
               <AssigneeSelect
                 people={people}
-                value={account.assignedTo ?? null}
-                onChange={val => updateAccount(account.id, 'assignedTo', val)}
+                value={sub.assignedTo ?? null}
+                onChange={val => updateSub(sub.id, 'assignedTo', val)}
               />
               <button
-                onClick={() => deleteAccount(account.id)}
+                onClick={() => deleteSub(sub.id)}
                 className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-                title="Remove account"
+                title="Remove subscription"
               >
                 <TrashIcon />
               </button>
@@ -121,16 +125,33 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
       </div>
 
       <button
-        onClick={addAccount}
+        onClick={addSub}
         className="w-full py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:border-blue-500 hover:text-blue-400 text-sm transition-colors"
       >
-        + Add Account
+        + Add Subscription
       </button>
 
-      <div className="bg-gray-700/40 rounded-lg px-4 py-3 flex items-center justify-between">
-        <span className="text-gray-400 text-sm font-medium">Total Cash Available</span>
-        <span className="text-white text-2xl font-bold">{formatCurrency(total)}</span>
+      <div className="bg-gray-700/40 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">
+        <div>
+          <span className="text-gray-500">Active: </span>
+          <span className="text-white font-semibold">{formatCurrency(activeTotal)}/mo</span>
+        </div>
+        {inactiveTotal > 0 && (
+          <div>
+            <span className="text-gray-500">Paused: </span>
+            <span className="text-gray-500 font-semibold line-through">{formatCurrency(inactiveTotal)}/mo</span>
+          </div>
+        )}
+        {inactiveTotal > 0 && (
+          <div>
+            <span className="text-gray-500">Savings if cut: </span>
+            <span className="text-emerald-400 font-semibold">+{formatCurrency(inactiveTotal)}/mo</span>
+          </div>
+        )}
       </div>
+      <p className="text-xs text-gray-600">
+        Toggle subscriptions on/off to see their impact on your runway. Drag <span className="text-gray-500">⠿</span> to reorder.
+      </p>
     </div>
   )
 }
