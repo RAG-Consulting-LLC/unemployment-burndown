@@ -15,6 +15,7 @@
     "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-amplify": "^3.997.0",
     "@tailwindcss/vite": "^4.1.8",
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.1.8",

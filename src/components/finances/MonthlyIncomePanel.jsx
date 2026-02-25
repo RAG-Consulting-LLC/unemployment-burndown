@@ -2,6 +2,8 @@ import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
+import CommentButton from '../comments/CommentButton'
+import CurrencyInput from './CurrencyInput'
 
 function TrashIcon() {
   return (
@@ -42,13 +44,14 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
           {/* Column headers — desktop only */}
           <div
             className="hidden sm:grid items-center gap-2 text-xs uppercase tracking-wider font-semibold px-1"
-            style={{ gridTemplateColumns: '20px 1fr 110px 120px 120px 32px 32px', color: 'var(--text-muted)' }}
+            style={{ gridTemplateColumns: '20px 1fr 110px 120px 120px 32px 32px 32px', color: 'var(--text-muted)' }}
           >
             <span></span>
             <span>Source</span>
             <span>Monthly</span>
             <span>Start Date</span>
             <span>End Date</span>
+            <span></span>
             <span></span>
             <span></span>
           </div>
@@ -64,7 +67,7 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
                     ? 'ring-2 ring-emerald-500/50 ring-inset'
                     : ''
                 }`}
-                style={{ gridTemplateColumns: '20px 1fr 110px 120px 120px 32px 32px' }}
+                style={{ gridTemplateColumns: '20px 1fr 110px 120px 120px 32px 32px 32px' }}
                 {...getItemProps(item.id)}
               >
                 {/* Row 1 (mobile): drag + description */}
@@ -97,14 +100,12 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
                     style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}
                   >
                     <span className="text-sm mr-1" style={{ color: 'var(--accent-emerald)' }}>+$</span>
-                    <input
-                      type="number"
+                    <CurrencyInput
                       value={item.monthlyAmount}
-                      onChange={e => updateItem(item.id, 'monthlyAmount', Number(e.target.value))}
+                      onChange={val => updateItem(item.id, 'monthlyAmount', val)}
                       className="bg-transparent text-sm w-full outline-none"
                       style={{ color: 'var(--text-primary)' }}
                       min="0"
-                      step="10"
                     />
                   </div>
                   <input
@@ -136,6 +137,7 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
                     value={item.assignedTo ?? null}
                     onChange={val => updateItem(item.id, 'assignedTo', val)}
                   />
+                  <CommentButton itemId={`inc_${item.id}`} label={item.description || 'Monthly Income'} />
                   <button
                     onClick={() => deleteItem(item.id)}
                     className="flex items-center justify-center transition-colors"

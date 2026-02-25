@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'react'
 
+const COLOR_HEX = {
+  blue:    '#3b82f6',
+  purple:  '#a855f7',
+  emerald: '#10b981',
+  amber:   '#fbbf24',
+  rose:    '#f43f5e',
+  cyan:    '#06b6d4',
+}
+
+function getPersonColor(people, assignedTo) {
+  if (!assignedTo || !people?.length) return null
+  const p = people.find(x => x.id === assignedTo)
+  return p ? (COLOR_HEX[p.color] ?? '#6b7280') : null
+}
+
 function fmt(n) {
   return '$' + Math.round(Math.abs(n)).toLocaleString()
 }
@@ -53,8 +68,13 @@ function Section({ label, total, sign, color, items = [], defaultOpen = false })
               <span className="text-xs truncate" style={{ color: 'var(--text-muted)', opacity: 0.75, maxWidth: '60%' }}>
                 {item.label}
               </span>
-              <span className="text-xs tabular-nums" style={{ color, opacity: 0.85 }}>
-                {fmt(item.amount)}
+              <span className="flex items-center gap-1.5">
+                {item.personColor && (
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: item.personColor, flexShrink: 0, display: 'inline-block' }} />
+                )}
+                <span className="text-xs tabular-nums" style={{ color, opacity: 0.85 }}>
+                  {fmt(item.amount)}
+                </span>
               </span>
             </div>
           ))}
@@ -70,7 +90,7 @@ function MobileFinancialDrawer({
   totalMonthlyIncome, upcomingOneTimeIncome, totalExpensesOnly, totalSubsCost,
   totalCCPayments, upcomingOneTimeExpenses, activeAccounts, activeSubscriptions,
   activeCCPayments, activeInvestments, expenses, monthlyIncome, unemployment,
-  oneTimeExpenses, oneTimeIncome,
+  oneTimeExpenses, oneTimeIncome, people = [],
 }) {
   const [open, setOpen] = useState(false)
 
@@ -84,6 +104,9 @@ function MobileFinancialDrawer({
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  // Peek height: 3.5rem handle + safe area
+  const peekHeight = 'calc(3.5rem + env(safe-area-inset-bottom, 0px))'
+
   return (
     <>
       {/* Backdrop */}
@@ -95,7 +118,8 @@ function MobileFinancialDrawer({
         />
       )}
 
-      {/* Bottom drawer */}
+      {/* Bottom drawer — uses max-height instead of transform so it's always
+          visible at the bottom regardless of content height or dvh support */}
       <div
         className="xl:hidden flex flex-col fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl"
         style={{
@@ -103,16 +127,19 @@ function MobileFinancialDrawer({
           border: '1px solid var(--border-default)',
           borderBottom: 'none',
           boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
-          transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
-          transform: open ? 'translateY(0)' : 'translateY(calc(100% - 3.5rem))',
-          maxHeight: '80vh',
+          transition: 'max-height 0.35s cubic-bezier(0.32,0.72,0,1)',
+          maxHeight: open ? '80vh' : peekHeight,
+          overflow: 'hidden',
         }}
       >
         {/* Handle / collapsed pill */}
         <button
           onClick={() => setOpen(o => !o)}
           className="w-full flex items-center justify-between px-4 shrink-0"
-          style={{ height: '3.5rem' }}
+          style={{
+            height: peekHeight,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
           aria-label={open ? 'Close financial summary' : 'Open financial summary'}
         >
           {/* Drag handle */}
@@ -142,11 +169,11 @@ function MobileFinancialDrawer({
           </div>
         </button>
 
-        {/* Scrollable content */}
-        <div className="flex flex-col gap-0.5 overflow-y-auto px-3 pb-6" style={{ scrollbarWidth: 'none' }}>
+        {/* Scrollable content — flex-1 + min-h-0 allows proper scroll within flex column */}
+        <div className="flex-1 min-h-0 flex flex-col gap-0.5 overflow-y-auto px-3" style={{ scrollbarWidth: 'none', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
           {/* Cash */}
           <Section label="Cash" total={totalSavings} sign="" color="var(--accent-blue)"
-            items={activeAccounts.map(a => ({ label: a.name || 'Account', amount: Number(a.amount) || 0 }))} />
+            items={activeAccounts.map(a => ({ label: a.name || 'Account', amount: Number(a.amount) || 0, personColor: getPersonColor(people, a.assignedTo) }))} />
 
           {assetProceeds > 0 && (
             <Section label="Assets (if sold)" total={assetProceeds} sign="+" color="var(--accent-teal)" items={[]} />
@@ -162,12 +189,12 @@ function MobileFinancialDrawer({
 
           {totalMonthlyIncome > 0 && (
             <Section label="Monthly Income" total={totalMonthlyIncome} sign="+" color="var(--accent-emerald)"
-              items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0 }))} />
+              items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0, personColor: getPersonColor(people, x.assignedTo) }))} />
           )}
 
           {upcomingOneTimeIncome.length > 0 && (
             <Section label="One-Time Income" total={upcomingOneTimeIncome.reduce((s, x) => s + (Number(x.amount) || 0), 0)} sign="+" color="var(--accent-teal)"
-              items={upcomingOneTimeIncome.map(x => ({ label: x.note || x.description || x.date || 'Income', amount: Number(x.amount) || 0 }))} />
+              items={upcomingOneTimeIncome.map(x => ({ label: x.note || x.description || x.date || 'Income', amount: Number(x.amount) || 0, personColor: getPersonColor(people, x.assignedTo) }))} />
           )}
 
           <div className="my-1 mx-2" style={{ borderTop: '1px solid var(--border-default)' }} />
@@ -175,27 +202,27 @@ function MobileFinancialDrawer({
 
           {totalExpensesOnly > 0 && (
             <Section label="Expenses" total={totalExpensesOnly} sign="-" color="var(--accent-red)"
-              items={expenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0 }))} />
+              items={expenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0, personColor: getPersonColor(people, e.assignedTo) }))} />
           )}
 
           {totalSubsCost > 0 && (
             <Section label="Subscriptions" total={totalSubsCost} sign="-" color="var(--accent-red)"
-              items={activeSubscriptions.map(s => ({ label: s.name || 'Sub', amount: Number(s.monthlyAmount) || 0 }))} />
+              items={activeSubscriptions.map(s => ({ label: s.name || 'Sub', amount: Number(s.monthlyAmount) || 0, personColor: getPersonColor(people, s.assignedTo) }))} />
           )}
 
           {totalCCPayments > 0 && (
             <Section label="CC Min. Payments" total={totalCCPayments} sign="-" color="var(--accent-amber)"
-              items={activeCCPayments.map(c => ({ label: c.name || 'Card', amount: Number(c.minimumPayment) || 0 }))} />
+              items={activeCCPayments.map(c => ({ label: c.name || 'Card', amount: Number(c.minimumPayment) || 0, personColor: getPersonColor(people, c.assignedTo) }))} />
           )}
 
           {monthlyInvestments > 0 && (
             <Section label="Investments" total={monthlyInvestments} sign="-" color="var(--accent-amber)"
-              items={activeInvestments.map(inv => ({ label: inv.name || inv.type || 'Investment', amount: Number(inv.monthlyAmount) || 0 }))} />
+              items={activeInvestments.map(inv => ({ label: inv.name || inv.type || 'Investment', amount: Number(inv.monthlyAmount) || 0, personColor: getPersonColor(people, inv.assignedTo) }))} />
           )}
 
           {upcomingOneTimeExpenses.length > 0 && (
             <Section label="One-Time Expenses" total={upcomingOneTimeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)} sign="-" color="var(--accent-red)"
-              items={upcomingOneTimeExpenses.map(e => ({ label: e.note || e.category || e.date || 'Expense', amount: Number(e.amount) || 0 }))} />
+              items={upcomingOneTimeExpenses.map(e => ({ label: e.note || e.category || e.date || 'Expense', amount: Number(e.amount) || 0, personColor: getPersonColor(people, e.assignedTo) }))} />
           )}
 
           <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-default)' }}>
@@ -236,6 +263,7 @@ export default function FinancialSidebar({
   oneTimeIncome = [],
   monthlyIncome = [],
   unemployment = {},
+  people = [],
 }) {
   const runwayLabel = totalRunwayMonths != null
     ? totalRunwayMonths >= 120
@@ -293,6 +321,7 @@ export default function FinancialSidebar({
       unemployment={unemployment}
       oneTimeExpenses={oneTimeExpenses}
       oneTimeIncome={oneTimeIncome}
+      people={people}
     />
     <aside
       className="hidden xl:flex flex-col fixed z-40"
@@ -318,7 +347,7 @@ export default function FinancialSidebar({
           sign=""
           color="var(--accent-blue)"
           defaultOpen={false}
-          items={activeAccounts.map(a => ({ label: a.name || 'Account', amount: Number(a.amount) || 0 }))}
+          items={activeAccounts.map(a => ({ label: a.name || 'Account', amount: Number(a.amount) || 0, personColor: getPersonColor(people, a.assignedTo) }))}
         />
 
         {/* Asset Proceeds */}
@@ -356,7 +385,7 @@ export default function FinancialSidebar({
             total={totalMonthlyIncome}
             sign="+"
             color="var(--accent-emerald)"
-            items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0 }))}
+            items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0, personColor: getPersonColor(people, x.assignedTo) }))}
           />
         )}
 
@@ -367,7 +396,7 @@ export default function FinancialSidebar({
             total={upcomingOneTimeIncome.reduce((s, x) => s + (Number(x.amount) || 0), 0)}
             sign="+"
             color="var(--accent-teal)"
-            items={upcomingOneTimeIncome.map(x => ({ label: x.note || x.description || x.date || 'Income', amount: Number(x.amount) || 0 }))}
+            items={upcomingOneTimeIncome.map(x => ({ label: x.note || x.description || x.date || 'Income', amount: Number(x.amount) || 0, personColor: getPersonColor(people, x.assignedTo) }))}
           />
         )}
 
@@ -382,7 +411,7 @@ export default function FinancialSidebar({
             total={totalExpensesOnly}
             sign="-"
             color="var(--accent-red)"
-            items={expenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0 }))}
+            items={expenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0, personColor: getPersonColor(people, e.assignedTo) }))}
           />
         )}
 
@@ -393,7 +422,7 @@ export default function FinancialSidebar({
             total={totalSubsCost}
             sign="-"
             color="var(--accent-red)"
-            items={activeSubscriptions.map(s => ({ label: s.name || 'Sub', amount: Number(s.monthlyAmount) || 0 }))}
+            items={activeSubscriptions.map(s => ({ label: s.name || 'Sub', amount: Number(s.monthlyAmount) || 0, personColor: getPersonColor(people, s.assignedTo) }))}
           />
         )}
 
@@ -404,7 +433,7 @@ export default function FinancialSidebar({
             total={totalCCPayments}
             sign="-"
             color="var(--accent-amber)"
-            items={activeCCPayments.map(c => ({ label: c.name || 'Card', amount: Number(c.minimumPayment) || 0 }))}
+            items={activeCCPayments.map(c => ({ label: c.name || 'Card', amount: Number(c.minimumPayment) || 0, personColor: getPersonColor(people, c.assignedTo) }))}
           />
         )}
 
@@ -415,7 +444,7 @@ export default function FinancialSidebar({
             total={monthlyInvestments}
             sign="-"
             color="var(--accent-amber)"
-            items={activeInvestments.map(inv => ({ label: inv.name || inv.type || 'Investment', amount: Number(inv.monthlyAmount) || 0 }))}
+            items={activeInvestments.map(inv => ({ label: inv.name || inv.type || 'Investment', amount: Number(inv.monthlyAmount) || 0, personColor: getPersonColor(people, inv.assignedTo) }))}
           />
         )}
 
@@ -426,7 +455,7 @@ export default function FinancialSidebar({
             total={upcomingOneTimeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)}
             sign="-"
             color="var(--accent-red)"
-            items={upcomingOneTimeExpenses.map(e => ({ label: e.note || e.category || e.date || 'Expense', amount: Number(e.amount) || 0 }))}
+            items={upcomingOneTimeExpenses.map(e => ({ label: e.note || e.category || e.date || 'Expense', amount: Number(e.amount) || 0, personColor: getPersonColor(people, e.assignedTo) }))}
           />
         )}
       </div>

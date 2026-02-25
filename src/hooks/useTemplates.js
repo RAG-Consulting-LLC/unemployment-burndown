@@ -108,6 +108,16 @@ export function useTemplates() {
     // Don't write to localStorage here — file is the source of truth
   }, [])
 
+  // Update specific fields in a template's snapshot (without loading it)
+  const updateSnapshot = useCallback((id, partialSnapshot) => {
+    const next = templates.map(t =>
+      t.id === id
+        ? { ...t, snapshot: { ...t.snapshot, ...partialSnapshot }, savedAt: new Date().toISOString() }
+        : t
+    )
+    persist(next)
+  }, [templates])
+
   // Duplicate a template — inserts copy directly after the original
   const duplicate = useCallback((id) => {
     const idx = templates.findIndex(t => t.id === id)
@@ -138,5 +148,6 @@ export function useTemplates() {
     getSnapshot,
     duplicate,
     bulkLoad,
+    updateSnapshot,
   }
 }

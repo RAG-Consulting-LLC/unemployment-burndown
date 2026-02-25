@@ -2,6 +2,8 @@ import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
+import CommentButton from '../comments/CommentButton'
+import CurrencyInput from './CurrencyInput'
 
 function TrashIcon() {
   return (
@@ -32,11 +34,12 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
   return (
     <div className="space-y-3">
       {/* Column headers — desktop only */}
-      <div className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}>
+      <div className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px 32px' }}>
         <span></span>
         <span>Category</span>
         <span>Monthly</span>
         <span className="text-center">Essential</span>
+        <span></span>
         <span></span>
         <span></span>
       </div>
@@ -75,13 +78,11 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
             <div className="flex items-center gap-2 sm:contents">
               <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
                 <span className="text-gray-500 text-sm mr-1">$</span>
-                <input
-                  type="number"
+                <CurrencyInput
                   value={expense.monthlyAmount}
-                  onChange={e => updateExpense(expense.id, 'monthlyAmount', Number(e.target.value))}
+                  onChange={val => updateExpense(expense.id, 'monthlyAmount', val)}
                   className="bg-transparent text-white text-sm w-full outline-none"
                   min="0"
-                  step="10"
                 />
               </div>
               <div className="flex justify-center flex-shrink-0">
@@ -101,6 +102,7 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
                 value={expense.assignedTo ?? null}
                 onChange={val => updateExpense(expense.id, 'assignedTo', val)}
               />
+              <CommentButton itemId={`expense_${expense.id}`} label={expense.category || 'Expense'} />
               <button
                 onClick={() => deleteExpense(expense.id)}
                 className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"

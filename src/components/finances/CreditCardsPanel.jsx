@@ -2,6 +2,8 @@ import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
+import CommentButton from '../comments/CommentButton'
+import CurrencyInput from './CurrencyInput'
 
 function TrashIcon() {
   return (
@@ -23,17 +25,28 @@ function DetailField({ label, prefix, suffix, value, onChange, min, max, step, p
         style={{ background: 'var(--bg-page)', border: '1px solid var(--border-input)' }}
       >
         {prefix && <span className="mr-1 text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{prefix}</span>}
-        <input
-          type={type}
-          value={value ?? ''}
-          onChange={e => onChange(type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
-          className="bg-transparent outline-none w-full"
-          style={{ color: 'var(--text-primary)', minWidth: 0 }}
-          min={min}
-          max={max}
-          step={step}
-          placeholder={placeholder ?? '—'}
-        />
+        {prefix === '$' && type === 'number' ? (
+          <CurrencyInput
+            value={value ?? 0}
+            onChange={onChange}
+            className="bg-transparent outline-none w-full"
+            style={{ color: 'var(--text-primary)', minWidth: 0 }}
+            min={min}
+            placeholder={placeholder ?? '0'}
+          />
+        ) : (
+          <input
+            type={type}
+            value={value ?? ''}
+            onChange={e => onChange(type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
+            className="bg-transparent outline-none w-full"
+            style={{ color: 'var(--text-primary)', minWidth: 0 }}
+            min={min}
+            max={max}
+            step={step}
+            placeholder={placeholder ?? '—'}
+          />
+        )}
         {suffix && <span className="ml-1 text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{suffix}</span>}
       </div>
     </label>
@@ -165,14 +178,12 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                     }}
                   >
                     <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
-                    <input
-                      type="number"
+                    <CurrencyInput
                       value={card.balance}
-                      onChange={e => updateCard(card.id, 'balance', Number(e.target.value))}
+                      onChange={val => updateCard(card.id, 'balance', val)}
                       className="bg-transparent text-sm w-full outline-none"
                       style={{ color: 'var(--text-primary)' }}
                       min="0"
-                      step="50"
                       placeholder="Balance"
                     />
                   </div>
@@ -187,24 +198,23 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                     }}
                   >
                     <span className="text-xs mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>min $</span>
-                    <input
-                      type="number"
+                    <CurrencyInput
                       value={card.minimumPayment}
-                      onChange={e => updateCard(card.id, 'minimumPayment', Number(e.target.value))}
+                      onChange={val => updateCard(card.id, 'minimumPayment', val)}
                       className="bg-transparent text-sm w-full outline-none"
                       style={{ color: 'var(--text-primary)' }}
                       min="0"
-                      step="5"
                       placeholder="Min pmt"
                     />
                   </div>
 
-                  {/* Assignee + delete */}
+                  {/* Assignee + comment + delete */}
                   <AssigneeSelect
                     people={people}
                     value={card.assignedTo ?? null}
                     onChange={val => updateCard(card.id, 'assignedTo', val)}
                   />
+                  <CommentButton itemId={`card_${card.id}`} label={card.name || 'Credit Card'} />
                   <button
                     onClick={() => deleteCard(card.id)}
                     className="flex-shrink-0 flex items-center justify-center transition-colors"

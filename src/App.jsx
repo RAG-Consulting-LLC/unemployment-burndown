@@ -4,10 +4,12 @@ import { DEFAULTS } from './constants/defaults'
 import { useBurndown } from './hooks/useBurndown'
 import { useTemplates } from './hooks/useTemplates'
 import { useActivityLog } from './hooks/useActivityLog'
+import { useAuth } from './hooks/useAuth'
+import LoginScreen from './components/auth/LoginScreen'
 import Header from './components/layout/Header'
 import SectionCard from './components/layout/SectionCard'
 import RunwayBanner from './components/dashboard/RunwayBanner'
-import BurndownChart from './components/chart/BurndownChart'
+import ChartTabsSection from './components/chart/ChartTabsSection'
 import SavingsPanel from './components/finances/SavingsPanel'
 import UnemploymentPanel from './components/finances/UnemploymentPanel'
 import ExpensePanel from './components/finances/ExpensePanel'
@@ -29,6 +31,9 @@ import CloudSaveStatus from './components/layout/CloudSaveStatus'
 import ActivityLogPanel from './components/layout/ActivityLogPanel'
 import FinancialSidebar from './components/layout/FinancialSidebar'
 import { useS3Storage } from './hooks/useS3Storage'
+import { diffArray, diffObject, diffPrimitive } from './utils/diffSection'
+import { CommentsProvider } from './context/CommentsContext'
+import CommentsPanel from './components/comments/CommentsPanel'
 
 // ---------------------------------------------------------------------------
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
@@ -161,6 +166,12 @@ const DEFAULT_VIEW = {
 }
 
 export default function App() {
+  const { authed, error: authError, login, logout } = useAuth()
+  if (!authed) return <LoginScreen onLogin={login} error={authError} />
+  return <AuthenticatedApp logout={logout} />
+}
+
+function AuthenticatedApp({ logout }) {
   const [presentationMode, setPresentationMode] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
   const [viewSettings, setViewSettings] = useState(DEFAULT_VIEW)
@@ -177,6 +188,8 @@ export default function App() {
   const [creditCards, setCreditCards] = useState(DEFAULTS.creditCards)
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
+  const [comments, setComments] = useState({})
+  const [defaultPersonId, setDefaultPersonId] = useState(null)
 
   const {
     templates,
@@ -189,9 +202,10 @@ export default function App() {
     getSnapshot,
     duplicate,
     bulkLoad,
+    updateSnapshot,
   } = useTemplates()
 
-  const { entries: logEntries, addEntry, clearLog, userName, setUserName } = useActivityLog()
+  const { entries: logEntries, addEntry, clearLog, loadEntries, userName, setUserName } = useActivityLog()
   const dirtySections = useRef(new Set())
 
   const s3Storage = useS3Storage()
@@ -226,6 +240,9 @@ export default function App() {
       state: buildSnapshot(),
       templates,
       activeTemplateId,
+      comments,
+      defaultPersonId,
+      activityLog: logEntries,
     }
   }
 
@@ -234,6 +251,9 @@ export default function App() {
     if (data.state) applySnapshot(data.state)
     if (Array.isArray(data.templates)) bulkLoad(data.templates)
     if (data.activeTemplateId != null) setActiveTemplateId(data.activeTemplateId)
+    if (data.comments && typeof data.comments === 'object') setComments(data.comments)
+    if (data.defaultPersonId != null) setDefaultPersonId(data.defaultPersonId)
+    if (Array.isArray(data.activityLog)) loadEntries(data.activityLog)
   }
 
   // When S3 storage loads data on mount, apply it
@@ -258,7 +278,7 @@ export default function App() {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates, comments, defaultPersonId]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -269,23 +289,64 @@ export default function App() {
     addEntry('load', `Template "${templates.find(t => t.id === id)?.name || id}" loaded`)
   }
 
-  // Tracked change handlers — mark sections dirty so auto-save can log what changed
-  function track(setter, label) {
-    return (v) => { setter(v); dirtySections.current.add(label) }
+  // ---------------------------------------------------------------------------
+  // Summarizers — convert state to a short display string for before/after logs
+  // ---------------------------------------------------------------------------
+  const _fmtM = (n) => '$' + Math.round(Math.abs(n)).toLocaleString()
+  const _activeSum = (arr, key) => _fmtM(arr.filter(a => a.active !== false).reduce((s, a) => s + (Number(a[key]) || 0), 0))
+  const _allSum    = (arr, key) => _fmtM(arr.reduce((s, a) => s + (Number(a[key]) || 0), 0))
+
+  const summarizeSavings      = (v) => _activeSum(v, 'amount')
+  const summarizeExpenses     = (v) => _allSum(v, 'monthlyAmount') + '/mo'
+  const summarizeUnemployment = (v) => `$${v.weeklyAmount || 0}/wk × ${v.durationWeeks || 0}wks`
+  const summarizeFurlough     = (v) => v || 'not set'
+  const summarizePeople       = (v) => `${v.length} person${v.length !== 1 ? 's' : ''}`
+  const summarizeWhatIf       = (v) => {
+    const parts = []
+    if (v.expenseReductionPct)                           parts.push(`${v.expenseReductionPct}% cut`)
+    if (v.sideIncomeMonthly)                             parts.push(`+${_fmtM(v.sideIncomeMonthly)}/mo side`)
+    if (v.jobOfferSalary && v.jobOfferStartDate)         parts.push(`job ${_fmtM(v.jobOfferSalary)}/mo`)
+    if (v.partnerIncomeMonthly && v.partnerStartDate)    parts.push(`partner ${_fmtM(v.partnerIncomeMonthly)}/mo`)
+    if (v.emergencyFloor)                                parts.push(`floor ${_fmtM(v.emergencyFloor)}`)
+    return parts.length ? parts.join(', ') : 'baseline'
   }
-  const onSavingsChange      = track(setSavingsAccounts, 'Cash & savings')
-  const onExpensesChange     = track(setExpenses,        'Monthly expenses')
-  const onUnemploymentChange = track(setUnemployment,    'Unemployment')
-  const onFurloughChange     = track(setFurloughDate,    'Furlough date')
-  const onPeopleChange       = track(setPeople,          'People')
-  const onWhatIfChange       = track(setWhatIf,          'What-if scenarios')
-  const onOneTimeExpChange   = track(setOneTimeExpenses, 'One-time expenses')
-  const onOneTimeIncChange   = track(setOneTimeIncome,   'One-time income')
-  const onMonthlyIncChange   = track(setMonthlyIncome,   'Monthly income')
-  const onAssetsChange       = track(setAssets,          'Assets')
-  const onInvestmentsChange  = track(setInvestments,     'Investments')
-  const onSubsChange         = track(setSubscriptions,   'Subscriptions')
-  const onCreditCardsChange  = track(setCreditCards,     'Credit cards')
+  const summarizeOneTimeExp   = (v) => `${v.length} item${v.length !== 1 ? 's' : ''} · ${_allSum(v, 'amount')}`
+  const summarizeOneTimeInc   = (v) => `${v.length} item${v.length !== 1 ? 's' : ''} · ${_allSum(v, 'amount')}`
+  const summarizeMonthlyInc   = (v) => _allSum(v, 'monthlyAmount') + '/mo'
+  const summarizeAssets       = (v) => `${v.length} asset${v.length !== 1 ? 's' : ''}`
+  const summarizeInvestments  = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
+  const summarizeSubs         = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
+  const summarizeCCs          = (v) => _allSum(v, 'minimumPayment') + ' min/mo'
+
+  // Tracked change handlers — capture before/after summary + granular diff details
+  function track(getter, setter, label, summarize, diffFn) {
+    return (v) => {
+      try {
+        const oldVal = getter()
+        const before  = summarize ? summarize(oldVal) : null
+        const after   = summarize ? summarize(v)      : null
+        const details = diffFn   ? diffFn(oldVal, v)  : []
+        if (before !== after || details.length > 0) {
+          addEntry('change', label, { before, after, details })
+        }
+      } catch {}
+      setter(v)
+      dirtySections.current.add(label)
+    }
+  }
+  const onSavingsChange      = track(() => savingsAccounts, setSavingsAccounts, 'Cash & savings',     summarizeSavings,      diffArray)
+  const onExpensesChange     = track(() => expenses,        setExpenses,        'Monthly expenses',   summarizeExpenses,     diffArray)
+  const onUnemploymentChange = track(() => unemployment,    setUnemployment,    'Unemployment',       summarizeUnemployment, diffObject)
+  const onFurloughChange     = track(() => furloughDate,    setFurloughDate,    'Furlough date',      summarizeFurlough,     diffPrimitive)
+  const onPeopleChange       = track(() => people,          setPeople,          'People',             summarizePeople,       diffArray)
+  const onWhatIfChange       = track(() => whatIf,          setWhatIf,          'What-if scenarios',  summarizeWhatIf,       diffObject)
+  const onOneTimeExpChange   = track(() => oneTimeExpenses, setOneTimeExpenses, 'One-time expenses',  summarizeOneTimeExp,   diffArray)
+  const onOneTimeIncChange   = track(() => oneTimeIncome,   setOneTimeIncome,   'One-time income',    summarizeOneTimeInc,   diffArray)
+  const onMonthlyIncChange   = track(() => monthlyIncome,   setMonthlyIncome,   'Monthly income',     summarizeMonthlyInc,   diffArray)
+  const onAssetsChange       = track(() => assets,          setAssets,          'Assets',             summarizeAssets,       diffArray)
+  const onInvestmentsChange  = track(() => investments,     setInvestments,     'Investments',        summarizeInvestments,  diffArray)
+  const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
+  const onCreditCardsChange  = track(() => creditCards,     setCreditCards,     'Credit cards',       summarizeCCs,          diffArray)
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -361,6 +422,14 @@ export default function App() {
     ((Number(whatIf.partnerIncomeMonthly) || 0) > 0 && !!whatIf.partnerStartDate)
 
   return (
+    <CommentsProvider
+      comments={comments}
+      onCommentsChange={setComments}
+      people={people}
+      defaultPersonId={defaultPersonId}
+      onDefaultPersonChange={setDefaultPersonId}
+    >
+    <CommentsPanel />
     <div className="min-h-screen theme-page" style={{ color: 'var(--text-primary)' }}>
       {/* Presentation overlay — rendered outside main layout so it fills the viewport */}
       {presentationMode && (
@@ -398,6 +467,23 @@ export default function App() {
         rightSlot={
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+              title="Sign out"
+              style={{
+                borderColor: 'var(--border-subtle)',
+                background: 'var(--bg-input)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
             <CloudSaveStatus storage={s3Storage} />
             {/* Activity log button */}
             <button
@@ -442,6 +528,7 @@ export default function App() {
               onRename={rename}
               onDelete={remove}
               onDuplicate={duplicate}
+              onUpdateSnapshot={updateSnapshot}
             />
           </div>
         }
@@ -467,9 +554,10 @@ export default function App() {
         oneTimeIncome={oneTimeIncome}
         monthlyIncome={monthlyIncome}
         unemployment={unemployment}
+        people={people}
       />
 
-      <main className="max-w-5xl mx-auto px-4 py-6 pb-20 xl:pb-6 space-y-5">
+      <main className="max-w-5xl mx-auto px-4 py-6 main-bottom-pad space-y-5">
 
         {/* Hero banner */}
         <div id="sec-runway" className="scroll-mt-20">
@@ -481,19 +569,22 @@ export default function App() {
           />
         </div>
 
-        {/* Burndown chart */}
-        <SectionCard id="sec-chart" title="Balance Over Time" className="scroll-mt-20">
-          <BurndownChart
-            dataPoints={current.dataPoints}
-            runoutDate={current.runoutDate}
-            baseDataPoints={hasWhatIf ? base.dataPoints : null}
-            benefitStart={current.benefitStart}
-            benefitEnd={current.benefitEnd}
-            emergencyFloor={current.emergencyFloor}
-            showEssentials={viewSettings.chartLines.essentialsOnly}
-            showBaseline={viewSettings.chartLines.baseline}
-          />
-        </SectionCard>
+        {/* Chart tabs */}
+        <ChartTabsSection
+          dataPoints={current.dataPoints}
+          runoutDate={current.runoutDate}
+          baseDataPoints={hasWhatIf ? base.dataPoints : null}
+          benefitStart={current.benefitStart}
+          benefitEnd={current.benefitEnd}
+          emergencyFloor={current.emergencyFloor}
+          showEssentials={viewSettings.chartLines.essentialsOnly}
+          showBaseline={viewSettings.chartLines.baseline}
+          expenses={expenses}
+          subscriptions={subscriptions}
+          creditCards={creditCards}
+          investments={investments}
+          monthlyBenefits={current.monthlyBenefits}
+        />
 
         {/* People / Household */}
         {viewSettings.sections.household && (
@@ -639,5 +730,6 @@ export default function App() {
         </p>
       </main>
     </div>
+    </CommentsProvider>
   )
 }

@@ -2,6 +2,8 @@ import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
+import CommentButton from '../comments/CommentButton'
+import CurrencyInput from './CurrencyInput'
 
 function TrashIcon() {
   return (
@@ -68,12 +70,13 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
           {/* Column headers — desktop only */}
           <div
             className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
-            style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px 32px' }}
+            style={{ gridTemplateColumns: '20px 1fr 130px 90px 32px 32px 32px' }}
           >
             <span></span>
             <span>Asset</span>
             <span>Est. Value</span>
             <span className="text-center">Sell?</span>
+            <span></span>
             <span></span>
             <span></span>
           </div>
@@ -125,13 +128,11 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
                         : 'border-gray-600 focus-within:border-blue-500'
                   }`}>
                     <span className="text-gray-500 text-sm mr-1">$</span>
-                    <input
-                      type="number"
+                    <CurrencyInput
                       value={asset.estimatedValue}
-                      onChange={e => updateAsset(asset.id, 'estimatedValue', Number(e.target.value))}
+                      onChange={val => updateAsset(asset.id, 'estimatedValue', val)}
                       className="bg-transparent text-white text-sm w-full outline-none"
                       min="0"
-                      step="100"
                     />
                   </div>
                   <div className="flex justify-center flex-shrink-0">
@@ -152,6 +153,7 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
                     value={asset.assignedTo ?? null}
                     onChange={val => updateAsset(asset.id, 'assignedTo', val)}
                   />
+                  <CommentButton itemId={`asset_${asset.id}`} label={asset.name || 'Asset'} />
                   <button
                     onClick={() => deleteAsset(asset.id)}
                     className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
@@ -163,7 +165,7 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
 
                 {/* Expanded sell details — shown when item is marked to sell */}
                 {asset.includedInWhatIf && (
-                  <div className="sm:col-span-6 border-t border-violet-800/30 pt-2 pb-1 space-y-2">
+                  <div className="sm:col-span-7 border-t border-violet-800/30 pt-2 pb-1 space-y-2">
                     {/* FB Marketplace link */}
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 flex-shrink-0">FB Marketplace:</span>
@@ -223,13 +225,11 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
                           </div>
                           <div className="flex items-center bg-gray-700/50 border border-gray-600 rounded px-2 py-1">
                             <span className="text-xs text-gray-500 mr-1">$</span>
-                            <input
-                              type="number"
+                            <CurrencyInput
                               value={asset.saleAmount || 0}
-                              onChange={e => updateAsset(asset.id, 'saleAmount', Number(e.target.value))}
+                              onChange={val => updateAsset(asset.id, 'saleAmount', val)}
                               className="bg-transparent text-white text-xs w-20 outline-none"
                               min="0"
-                              step="100"
                             />
                           </div>
                           <button

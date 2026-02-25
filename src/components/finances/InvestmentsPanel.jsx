@@ -2,6 +2,8 @@ import { formatCurrency } from '../../utils/formatters'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
+import CommentButton from '../comments/CommentButton'
+import CurrencyInput from './CurrencyInput'
 
 function TrashIcon() {
   return (
@@ -48,12 +50,13 @@ export default function InvestmentsPanel({ investments, onChange, people = [] })
         {/* Column headers — desktop only */}
         <div
           className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
-          style={{ gridTemplateColumns: '20px 1fr 120px 72px 32px 32px' }}
+          style={{ gridTemplateColumns: '20px 1fr 120px 72px 32px 32px 32px' }}
         >
           <span></span>
           <span>Investment</span>
           <span>Monthly</span>
           <span className="text-center">Status</span>
+          <span></span>
           <span></span>
           <span></span>
         </div>
@@ -92,13 +95,11 @@ export default function InvestmentsPanel({ investments, onChange, people = [] })
                   inv.active ? 'border-teal-700/50 focus-within:border-teal-400' : 'border-gray-600 focus-within:border-gray-500'
                 }`}>
                   <span className="text-gray-500 text-sm mr-1">$</span>
-                  <input
-                    type="number"
+                  <CurrencyInput
                     value={inv.monthlyAmount}
-                    onChange={e => update(inv.id, 'monthlyAmount', Number(e.target.value))}
+                    onChange={val => update(inv.id, 'monthlyAmount', val)}
                     className="bg-transparent text-white text-sm w-full outline-none"
                     min="0"
-                    step="10"
                   />
                   <span className="text-gray-600 text-xs ml-1 shrink-0">/mo</span>
                 </div>
@@ -118,6 +119,7 @@ export default function InvestmentsPanel({ investments, onChange, people = [] })
                   value={inv.assignedTo ?? null}
                   onChange={val => update(inv.id, 'assignedTo', val)}
                 />
+                <CommentButton itemId={`inv_${inv.id}`} label={inv.name || 'Investment'} />
                 <button
                   onClick={() => remove(inv.id)}
                   className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"

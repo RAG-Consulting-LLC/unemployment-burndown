@@ -1,3 +1,6 @@
+import CommentButton from '../comments/CommentButton'
+import { useComments } from '../../context/CommentsContext'
+
 const COLORS = ['blue', 'purple', 'emerald', 'amber', 'rose', 'cyan']
 
 const COLOR_CLASSES = {
@@ -36,6 +39,8 @@ function TrashIcon() {
 }
 
 export default function PeopleManager({ people, onChange }) {
+  const { defaultPersonId, onDefaultPersonChange } = useComments()
+
   function updatePerson(id, field, val) {
     onChange(people.map(p => p.id === id ? { ...p, [field]: val } : p))
   }
@@ -62,43 +67,82 @@ export default function PeopleManager({ people, onChange }) {
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
         Add people in your household. Assign them to any financial item using the colored pill on each row.
+        Click <strong className="text-gray-400">Set as me</strong> on your bubble to author comments as yourself.
       </p>
 
       <div className="flex flex-wrap gap-3">
-        {people.map(person => (
-          <div
-            key={person.id}
-            className="flex items-center gap-2 bg-gray-700/60 border border-gray-600 rounded-xl px-3 py-2"
-          >
-            {/* Color swatch — click to cycle */}
-            <button
-              type="button"
-              onClick={() => cycleColor(person.id)}
-              title="Click to change color"
-              className={`w-7 h-7 rounded-full flex-shrink-0 ${COLOR_CLASSES[person.color] ?? 'bg-gray-500'} flex items-center justify-center text-xs font-bold text-white ring-2 ring-offset-1 ring-offset-gray-700 ${COLOR_RING[person.color] ?? 'ring-gray-500'} transition-all`}
+        {people.map(person => {
+          const isMe = person.id === defaultPersonId
+          return (
+            <div
+              key={person.id}
+              className="flex items-center gap-2 border rounded-xl px-3 py-2 transition-all"
+              style={{
+                background: isMe
+                  ? 'color-mix(in srgb, var(--accent-blue) 10%, var(--bg-card))'
+                  : 'rgba(55,65,81,0.6)',
+                borderColor: isMe
+                  ? 'color-mix(in srgb, var(--accent-blue) 50%, transparent)'
+                  : 'rgb(75,85,99)',
+              }}
             >
-              {getInitials(person.name)}
-            </button>
+              {/* Color swatch — click to cycle */}
+              <button
+                type="button"
+                onClick={() => cycleColor(person.id)}
+                title="Click to change color"
+                className={`w-7 h-7 rounded-full flex-shrink-0 ${COLOR_CLASSES[person.color] ?? 'bg-gray-500'} flex items-center justify-center text-xs font-bold text-white ring-2 ring-offset-1 ring-offset-gray-700 ${COLOR_RING[person.color] ?? 'ring-gray-500'} transition-all`}
+              >
+                {getInitials(person.name)}
+              </button>
 
-            {/* Name input */}
-            <input
-              type="text"
-              value={person.name}
-              onChange={e => updatePerson(person.id, 'name', e.target.value)}
-              className="bg-transparent text-white text-sm font-medium w-24 outline-none border-b border-transparent focus:border-gray-500 transition-colors"
-              placeholder="Name"
-            />
+              {/* Name input */}
+              <input
+                type="text"
+                value={person.name}
+                onChange={e => updatePerson(person.id, 'name', e.target.value)}
+                className="bg-transparent text-white text-sm font-medium w-24 outline-none border-b border-transparent focus:border-gray-500 transition-colors"
+                placeholder="Name"
+              />
 
-            {/* Delete */}
-            <button
-              onClick={() => deletePerson(person.id)}
-              className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0"
-              title="Remove person"
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        ))}
+              {/* "Set as me" / "me" indicator */}
+              <button
+                type="button"
+                onClick={() => onDefaultPersonChange(isMe ? null : person.id)}
+                title={isMe ? 'Currently set as you — click to unset' : `Set as me (for comments)`}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition-all flex-shrink-0"
+                style={{
+                  color: isMe ? 'var(--accent-blue)' : 'var(--text-muted)',
+                  background: isMe ? 'color-mix(in srgb, var(--accent-blue) 15%, transparent)' : 'transparent',
+                  border: `1px solid ${isMe ? 'color-mix(in srgb, var(--accent-blue) 40%, transparent)' : 'transparent'}`,
+                }}
+              >
+                {isMe ? (
+                  <>
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M2 6l3 3 5-5" />
+                    </svg>
+                    me
+                  </>
+                ) : (
+                  'set as me'
+                )}
+              </button>
+
+              {/* Comment button */}
+              <CommentButton itemId={`person_${person.id}`} label={person.name} />
+
+              {/* Delete */}
+              <button
+                onClick={() => deletePerson(person.id)}
+                className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0"
+                title="Remove person"
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          )
+        })}
 
         <button
           onClick={addPerson}

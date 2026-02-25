@@ -102,12 +102,23 @@ button, a {
 
 /* Desktop grid-template-columns for finance panel rows (applied at sm+) */
 @media (min-width: 640px) {
-  .row-savings-sm    { grid-template-columns: 20px 32px 1fr 130px 32px 32px; }
-  .row-expense-sm    { grid-template-columns: 20px 1fr 110px 80px 32px 32px; }
-  .row-creditcard-sm { grid-template-columns: 20px 1fr 130px 130px 32px 32px; }
-  .row-invest-sm     { grid-template-columns: 20px 1fr 120px 72px 32px 32px; }
-  .row-onetimeexp-sm { grid-template-columns: 20px 1fr 130px 110px 32px 32px; }
-  .row-assets-sm     { grid-template-columns: 20px 1fr 130px 90px 32px 32px; }
+  .row-savings-sm    { grid-template-columns: 20px 32px 1fr 130px 32px 32px 32px; }
+  .row-expense-sm    { grid-template-columns: 20px 1fr 110px 80px 32px 32px 32px; }
+  .row-creditcard-sm { grid-template-columns: 20px 1fr 130px 130px 32px 32px 32px; }
+  .row-invest-sm     { grid-template-columns: 20px 1fr 120px 72px 32px 32px 32px; }
+  .row-onetimeexp-sm { grid-template-columns: 20px 1fr 130px 110px 32px 32px 32px; }
+  .row-assets-sm     { grid-template-columns: 20px 1fr 130px 90px 32px 32px 32px; }
+}
+
+/* Mobile drawer safe-area bottom padding */
+.main-bottom-pad {
+  /* Mobile: account for drawer handle + safe area + buffer */
+  padding-bottom: max(5rem, calc(3.5rem + env(safe-area-inset-bottom, 0px) + 1rem));
+}
+@media (min-width: 1280px) {
+  .main-bottom-pad {
+    padding-bottom: 1.5rem; /* xl: drawer is hidden, restore normal spacing */
+  }
 }
 
 /* Mobile: style panel rows as small cards for readability */

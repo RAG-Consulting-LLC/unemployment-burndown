@@ -50,6 +50,14 @@ function DuplicateIcon() {
   )
 }
 
+function CalendarIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+      <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
 export default function TemplateManager({
   templates,
   activeTemplateId,
@@ -59,6 +67,7 @@ export default function TemplateManager({
   onRename,
   onDelete,
   onDuplicate,
+  onUpdateSnapshot,
 }) {
   const [open, setOpen] = useState(false)
   // 'idle' | 'saving-new' | 'renaming:{id}'
@@ -66,8 +75,10 @@ export default function TemplateManager({
   const [inputVal, setInputVal] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [editingDateId, setEditingDateId] = useState(null)
   const dropdownRef = useRef(null)
   const inputRef = useRef(null)
+  const dateInputRef = useRef(null)
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -76,6 +87,7 @@ export default function TemplateManager({
         setOpen(false)
         setMode('idle')
         setConfirmDeleteId(null)
+        setEditingDateId(null)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -89,6 +101,18 @@ export default function TemplateManager({
       inputRef.current.select()
     }
   }, [mode])
+
+  // Auto-focus date input when editing
+  useEffect(() => {
+    if (editingDateId !== null && dateInputRef.current) {
+      dateInputRef.current.focus()
+    }
+  }, [editingDateId])
+
+  function handleDateChange(id, newDate) {
+    if (onUpdateSnapshot) onUpdateSnapshot(id, { furloughDate: newDate })
+    setEditingDateId(null)
+  }
 
   const activeTemplate = templates.find(t => t.id === activeTemplateId)
 
@@ -253,6 +277,36 @@ export default function TemplateManager({
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">Saved {formatSavedAt(t.savedAt)}</p>
                         </button>
+                      )}
+                      {/* Furlough / start date inline editor */}
+                      {mode !== `renaming:${t.id}` && (
+                        <div className="flex items-center gap-1 mt-1" onClick={e => e.stopPropagation()}>
+                          <span className="text-gray-600" style={{ flexShrink: 0 }}><CalendarIcon /></span>
+                          {editingDateId === t.id ? (
+                            <input
+                              ref={dateInputRef}
+                              type="date"
+                              defaultValue={t.snapshot?.furloughDate || ''}
+                              onBlur={e => handleDateChange(t.id, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleDateChange(t.id, e.target.value)
+                                if (e.key === 'Escape') setEditingDateId(null)
+                              }}
+                              className="text-xs bg-gray-700 border border-blue-500 rounded px-1.5 py-0.5 text-white outline-none"
+                              style={{ colorScheme: 'dark' }}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => setEditingDateId(t.id)}
+                              className="text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                              title="Edit start / furlough date"
+                            >
+                              {t.snapshot?.furloughDate
+                                ? new Date(t.snapshot.furloughDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                : 'Set start date'}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
