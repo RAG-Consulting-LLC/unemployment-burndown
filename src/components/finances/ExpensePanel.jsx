@@ -31,8 +31,8 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
 
   return (
     <div className="space-y-3">
-      {/* Column headers */}
-      <div className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}>
+      {/* Column headers — desktop only */}
+      <div className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1" style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}>
         <span></span>
         <span>Category</span>
         <span>Monthly</span>
@@ -46,64 +46,68 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
         {expenses.map(expense => (
           <div
             key={expense.id}
-            className={`grid items-center gap-2 rounded-lg transition-all ${
+            className={`row-expense-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
               draggingId === expense.id ? 'opacity-40' : ''
             } ${
               overedId === expense.id && draggingId !== expense.id
                 ? 'ring-2 ring-blue-500/50 ring-inset'
                 : ''
             }`}
-            style={{ gridTemplateColumns: '20px 1fr 110px 80px 32px 32px' }}
             {...getItemProps(expense.id)}
           >
-            {/* Drag handle */}
-            <div
-              className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-              {...dragHandleProps(expense.id)}
-            >
-              <DragHandle />
-            </div>
-            <input
-              type="text"
-              value={expense.category}
-              onChange={e => updateExpense(expense.id, 'category', e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-              placeholder="Category name"
-            />
-            <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-              <span className="text-gray-500 text-sm mr-1">$</span>
+            {/* Subrow 1: drag · category name */}
+            <div className="flex items-center gap-2 sm:contents">
+              <div
+                className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none flex-shrink-0"
+                {...dragHandleProps(expense.id)}
+              >
+                <DragHandle />
+              </div>
               <input
-                type="number"
-                value={expense.monthlyAmount}
-                onChange={e => updateExpense(expense.id, 'monthlyAmount', Number(e.target.value))}
-                className="bg-transparent text-white text-sm w-full outline-none"
-                min="0"
-                step="10"
+                type="text"
+                value={expense.category}
+                onChange={e => updateExpense(expense.id, 'category', e.target.value)}
+                className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Category name"
               />
             </div>
-            <div className="flex justify-center">
+            {/* Subrow 2: amount · essential · assignee · trash */}
+            <div className="flex items-center gap-2 sm:contents">
+              <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
+                <span className="text-gray-500 text-sm mr-1">$</span>
+                <input
+                  type="number"
+                  value={expense.monthlyAmount}
+                  onChange={e => updateExpense(expense.id, 'monthlyAmount', Number(e.target.value))}
+                  className="bg-transparent text-white text-sm w-full outline-none"
+                  min="0"
+                  step="10"
+                />
+              </div>
+              <div className="flex justify-center flex-shrink-0">
+                <button
+                  onClick={() => updateExpense(expense.id, 'essential', !expense.essential)}
+                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                    expense.essential
+                      ? 'bg-blue-600/30 text-blue-300 border border-blue-600/50'
+                      : 'bg-gray-700 text-gray-500 border border-gray-600 hover:border-gray-500'
+                  }`}
+                >
+                  {expense.essential ? 'Yes' : 'No'}
+                </button>
+              </div>
+              <AssigneeSelect
+                people={people}
+                value={expense.assignedTo ?? null}
+                onChange={val => updateExpense(expense.id, 'assignedTo', val)}
+              />
               <button
-                onClick={() => updateExpense(expense.id, 'essential', !expense.essential)}
-                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                  expense.essential
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-600/50'
-                    : 'bg-gray-700 text-gray-500 border border-gray-600 hover:border-gray-500'
-                }`}
+                onClick={() => deleteExpense(expense.id)}
+                className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
               >
-                {expense.essential ? 'Yes' : 'No'}
+                <TrashIcon />
               </button>
             </div>
-            <AssigneeSelect
-              people={people}
-              value={expense.assignedTo ?? null}
-              onChange={val => updateExpense(expense.id, 'assignedTo', val)}
-            />
-            <button
-              onClick={() => deleteExpense(expense.id)}
-              className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-            >
-              <TrashIcon />
-            </button>
           </div>
         ))}
       </div>

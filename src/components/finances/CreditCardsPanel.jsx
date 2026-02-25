@@ -11,6 +11,61 @@ function TrashIcon() {
   )
 }
 
+/** Small labeled input used in the details row */
+function DetailField({ label, prefix, suffix, value, onChange, min, max, step, placeholder, type = 'number' }) {
+  return (
+    <label className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      <div
+        className="flex items-center rounded-md px-2 py-1.5 text-sm focus-within:ring-1 focus-within:ring-blue-500/60"
+        style={{ background: 'var(--bg-page)', border: '1px solid var(--border-input)' }}
+      >
+        {prefix && <span className="mr-1 text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{prefix}</span>}
+        <input
+          type={type}
+          value={value ?? ''}
+          onChange={e => onChange(type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
+          className="bg-transparent outline-none w-full"
+          style={{ color: 'var(--text-primary)', minWidth: 0 }}
+          min={min}
+          max={max}
+          step={step}
+          placeholder={placeholder ?? '—'}
+        />
+        {suffix && <span className="ml-1 text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>{suffix}</span>}
+      </div>
+    </label>
+  )
+}
+
+/** Utilization badge — colour shifts red as utilization climbs */
+function UtilBadge({ balance, limit }) {
+  if (!limit || limit <= 0) return null
+  const pct = Math.min(100, Math.round((balance / limit) * 100))
+  const color =
+    pct >= 90 ? '#f87171' :   // red-400
+    pct >= 60 ? '#fb923c' :   // orange-400
+    pct >= 30 ? '#facc15' :   // yellow-400
+                '#34d399'      // emerald-400
+
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        Utilization
+      </span>
+      <div className="flex items-center gap-2 py-1.5">
+        {/* bar */}
+        <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }}>
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+        </div>
+        <span className="text-xs font-semibold tabular-nums" style={{ color }}>{pct}%</span>
+      </div>
+    </div>
+  )
+}
+
 export default function CreditCardsPanel({ cards, onChange, people = [] }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(cards, onChange)
 
@@ -28,128 +83,239 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
       name: 'New Card',
       balance: 0,
       minimumPayment: 0,
+      creditLimit: 0,
+      apr: 0,
+      statementCloseDay: '',
       assignedTo: null,
     }])
   }
 
   const totalBalance = cards.reduce((sum, c) => sum + (Number(c.balance) || 0), 0)
   const totalMinimum = cards.reduce((sum, c) => sum + (Number(c.minimumPayment) || 0), 0)
+  const totalLimit   = cards.reduce((sum, c) => sum + (Number(c.creditLimit) || 0), 0)
+  const overallUtil  = totalLimit > 0 ? Math.round((totalBalance / totalLimit) * 100) : null
+
+  // Weighted-average APR by outstanding balance
+  const avgApr = (() => {
+    const withBal = cards.filter(c => Number(c.balance) > 0 && Number(c.apr) > 0)
+    if (!withBal.length) return null
+    const totalBal = withBal.reduce((s, c) => s + Number(c.balance), 0)
+    if (!totalBal) return null
+    return (withBal.reduce((s, c) => s + Number(c.apr) * Number(c.balance), 0) / totalBal).toFixed(1)
+  })()
 
   return (
     <div className="space-y-3">
-      {/* Column headers */}
-      <div
-        className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
-        style={{ gridTemplateColumns: '20px 1fr 130px 130px 32px 32px' }}
-      >
-        <span></span>
-        <span>Card / Account</span>
-        <span>Balance Owed</span>
-        <span>Min. Payment</span>
-        <span></span>
-        <span></span>
-      </div>
-
-      {/* Card rows */}
-      <div className="space-y-2">
-        {cards.map(card => (
-          <div
-            key={card.id}
-            className={`grid items-center gap-2 rounded-lg transition-all ${
-              draggingId === card.id ? 'opacity-40' : ''
-            } ${
-              overedId === card.id && draggingId !== card.id
-                ? 'ring-2 ring-blue-500/50 ring-inset'
-                : ''
-            }`}
-            style={{ gridTemplateColumns: '20px 1fr 130px 130px 32px 32px' }}
-            {...getItemProps(card.id)}
-          >
-            {/* Drag handle */}
+      {cards.length === 0 ? (
+        <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
+          No cards yet. Add credit cards or any outstanding debt to track balances and minimum payments.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {cards.map(card => (
             <div
-              className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-              {...dragHandleProps(card.id)}
+              key={card.id}
+              className={`rounded-xl border transition-all ${
+                draggingId === card.id ? 'opacity-40' : ''
+              } ${
+                overedId === card.id && draggingId !== card.id
+                  ? 'ring-2 ring-blue-500/50'
+                  : ''
+              }`}
+              style={{ background: 'var(--bg-input)', borderColor: 'var(--border-input)' }}
+              {...getItemProps(card.id)}
             >
-              <DragHandle />
+              {/* ── Primary row ── */}
+              <div className="flex flex-col gap-2 p-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-2">
+                {/* Mobile subrow 1 / Desktop inline: drag + name */}
+                <div className="flex items-center gap-2 sm:contents">
+                  {/* Drag handle */}
+                  <div
+                    className="flex items-center justify-center select-none flex-shrink-0 transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    {...dragHandleProps(card.id)}
+                  >
+                    <DragHandle />
+                  </div>
+
+                  {/* Card name */}
+                  <input
+                    type="text"
+                    value={card.name}
+                    onChange={e => updateCard(card.id, 'name', e.target.value)}
+                    className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                    style={{
+                      background: 'var(--bg-page)',
+                      border: '1px solid var(--border-input)',
+                      color: 'var(--text-primary)',
+                    }}
+                    placeholder="Card name"
+                  />
+                </div>
+
+                {/* Mobile subrow 2 / Desktop inline: balance + min pmt + assignee + trash */}
+                <div className="flex items-center gap-2 sm:contents">
+                  {/* Balance owed */}
+                  <div
+                    className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
+                    style={{
+                      background: 'var(--bg-page)',
+                      border: '1px solid var(--border-input)',
+                      minWidth: '80px',
+                    }}
+                  >
+                    <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
+                    <input
+                      type="number"
+                      value={card.balance}
+                      onChange={e => updateCard(card.id, 'balance', Number(e.target.value))}
+                      className="bg-transparent text-sm w-full outline-none"
+                      style={{ color: 'var(--text-primary)' }}
+                      min="0"
+                      step="50"
+                      placeholder="Balance"
+                    />
+                  </div>
+
+                  {/* Min payment */}
+                  <div
+                    className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
+                    style={{
+                      background: 'var(--bg-page)',
+                      border: '1px solid var(--border-input)',
+                      minWidth: '80px',
+                    }}
+                  >
+                    <span className="text-xs mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>min $</span>
+                    <input
+                      type="number"
+                      value={card.minimumPayment}
+                      onChange={e => updateCard(card.id, 'minimumPayment', Number(e.target.value))}
+                      className="bg-transparent text-sm w-full outline-none"
+                      style={{ color: 'var(--text-primary)' }}
+                      min="0"
+                      step="5"
+                      placeholder="Min pmt"
+                    />
+                  </div>
+
+                  {/* Assignee + delete */}
+                  <AssigneeSelect
+                    people={people}
+                    value={card.assignedTo ?? null}
+                    onChange={val => updateCard(card.id, 'assignedTo', val)}
+                  />
+                  <button
+                    onClick={() => deleteCard(card.id)}
+                    className="flex-shrink-0 flex items-center justify-center transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Details row ── */}
+              <div
+                className="flex flex-wrap items-end gap-x-4 gap-y-2 px-3 pb-3 pt-2"
+                style={{ borderTop: '1px solid var(--border-subtle)' }}
+              >
+                <DetailField
+                  label="Credit Limit"
+                  prefix="$"
+                  value={card.creditLimit}
+                  onChange={val => updateCard(card.id, 'creditLimit', val)}
+                  min={0}
+                  step={100}
+                  placeholder="0"
+                />
+                <DetailField
+                  label="APR"
+                  suffix="%"
+                  value={card.apr}
+                  onChange={val => updateCard(card.id, 'apr', val)}
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  placeholder="0.00"
+                />
+                <DetailField
+                  label="Stmt Closes (Day)"
+                  value={card.statementCloseDay}
+                  onChange={val => updateCard(card.id, 'statementCloseDay', val)}
+                  min={1}
+                  max={28}
+                  step={1}
+                  placeholder="e.g. 15"
+                />
+                <UtilBadge balance={Number(card.balance) || 0} limit={Number(card.creditLimit) || 0} />
+              </div>
             </div>
-
-            {/* Card name */}
-            <input
-              type="text"
-              value={card.name}
-              onChange={e => updateCard(card.id, 'name', e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-              placeholder="Card name"
-            />
-
-            {/* Outstanding balance */}
-            <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-              <span className="text-gray-500 text-sm mr-1">$</span>
-              <input
-                type="number"
-                value={card.balance}
-                onChange={e => updateCard(card.id, 'balance', Number(e.target.value))}
-                className="bg-transparent text-white text-sm w-full outline-none"
-                min="0"
-                step="50"
-                placeholder="0"
-              />
-            </div>
-
-            {/* Minimum monthly payment */}
-            <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-              <span className="text-gray-500 text-sm mr-1">$</span>
-              <input
-                type="number"
-                value={card.minimumPayment}
-                onChange={e => updateCard(card.id, 'minimumPayment', Number(e.target.value))}
-                className="bg-transparent text-white text-sm w-full outline-none"
-                min="0"
-                step="5"
-                placeholder="0"
-              />
-            </div>
-
-            <AssigneeSelect
-              people={people}
-              value={card.assignedTo ?? null}
-              onChange={val => updateCard(card.id, 'assignedTo', val)}
-            />
-
-            <button
-              onClick={() => deleteCard(card.id)}
-              className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-            >
-              <TrashIcon />
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Add row */}
       <button
         onClick={addCard}
-        className="w-full py-2 rounded-lg border border-dashed border-gray-600 text-gray-500 hover:border-blue-500 hover:text-blue-400 text-sm transition-colors"
+        className="w-full py-2 rounded-lg border border-dashed text-sm transition-colors"
+        style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}
+        onMouseEnter={e => {
+          e.currentTarget.style.borderColor = 'var(--accent-blue)'
+          e.currentTarget.style.color = 'var(--accent-blue)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.borderColor = 'var(--border-subtle)'
+          e.currentTarget.style.color = 'var(--text-muted)'
+        }}
       >
         + Add Card
       </button>
 
       {/* Totals */}
       {cards.length > 0 && (
-        <div className="bg-gray-700/40 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">
+        <div
+          className="rounded-lg px-4 py-3 flex flex-wrap gap-x-5 gap-y-2 text-sm"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
+        >
           <div>
-            <span className="text-gray-500">Total balance owed: </span>
-            <span className="text-red-300 font-semibold">{formatCurrency(totalBalance)}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Balance owed: </span>
+            <span className="font-semibold" style={{ color: '#f87171' }}>{formatCurrency(totalBalance)}</span>
           </div>
+          {totalLimit > 0 && (
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Total credit: </span>
+              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalLimit)}</span>
+            </div>
+          )}
+          {overallUtil !== null && (
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Overall util.: </span>
+              <span
+                className="font-semibold"
+                style={{ color: overallUtil >= 90 ? '#f87171' : overallUtil >= 60 ? '#fb923c' : overallUtil >= 30 ? '#facc15' : '#34d399' }}
+              >
+                {overallUtil}%
+              </span>
+            </div>
+          )}
           <div>
-            <span className="text-gray-500">Total min. payments: </span>
-            <span className="text-white font-semibold">{formatCurrency(totalMinimum)}/mo</span>
+            <span style={{ color: 'var(--text-muted)' }}>Min payments: </span>
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalMinimum)}/mo</span>
           </div>
+          {avgApr !== null && (
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Avg APR: </span>
+              <span className="font-semibold" style={{ color: '#fb923c' }}>{avgApr}%</span>
+            </div>
+          )}
         </div>
       )}
 
-      <p className="text-xs text-gray-600">
-        Outstanding balances are tracked for awareness. Minimum payments are added to your monthly expenses. Drag <span className="text-gray-500">⠿</span> to reorder.
+      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+        Minimum payments are added to your monthly expenses. Utilization = balance ÷ limit. Drag <span style={{ color: 'var(--text-muted)' }}>⠿</span> to reorder.
       </p>
     </div>
   )

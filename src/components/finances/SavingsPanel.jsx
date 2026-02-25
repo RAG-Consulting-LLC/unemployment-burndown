@@ -36,9 +36,9 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
 
   return (
     <div className="space-y-3">
-      {/* Column headers */}
+      {/* Column headers — desktop only */}
       <div
-        className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
+        className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
         style={{ gridTemplateColumns: '20px 32px 1fr 130px 32px 32px' }}
       >
         <span></span>
@@ -56,65 +56,70 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
           return (
             <div
               key={account.id}
-              className={`grid items-center gap-2 rounded-lg transition-all ${
+              className={`row-savings-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
                 draggingId === account.id ? 'opacity-40' : ''
               } ${
                 overedId === account.id && draggingId !== account.id
                   ? 'ring-2 ring-blue-500/50 ring-inset'
                   : ''
               } ${!isActive ? 'opacity-50' : ''}`}
-              style={{ gridTemplateColumns: '20px 32px 1fr 130px 32px 32px' }}
               {...getItemProps(account.id)}
             >
-              <div
-                className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-                {...dragHandleProps(account.id)}
-              >
-                <DragHandle />
-              </div>
-              <button
-                onClick={() => toggleAccount(account.id)}
-                title={isActive ? 'Exclude from total' : 'Include in total'}
-                className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 relative ${
-                  isActive ? 'bg-blue-500' : 'bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                    isActive ? 'translate-x-3' : 'translate-x-0.5'
+              {/* Subrow 1: drag · toggle · name */}
+              <div className="flex items-center gap-2 sm:contents">
+                <div
+                  className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none flex-shrink-0"
+                  {...dragHandleProps(account.id)}
+                >
+                  <DragHandle />
+                </div>
+                <button
+                  onClick={() => toggleAccount(account.id)}
+                  title={isActive ? 'Exclude from total' : 'Include in total'}
+                  className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 relative ${
+                    isActive ? 'bg-blue-500' : 'bg-gray-600'
                   }`}
-                />
-              </button>
-              <input
-                type="text"
-                value={account.name}
-                onChange={e => updateAccount(account.id, 'name', e.target.value)}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-                placeholder="e.g. Chase Checking"
-              />
-              <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-                <span className="text-gray-500 text-sm mr-1">$</span>
+                >
+                  <span
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      isActive ? 'translate-x-3' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
                 <input
-                  type="number"
-                  value={account.amount}
-                  onChange={e => updateAccount(account.id, 'amount', Number(e.target.value))}
-                  className="bg-transparent text-white text-sm w-full outline-none"
-                  min="0"
-                  step="100"
+                  type="text"
+                  value={account.name}
+                  onChange={e => updateAccount(account.id, 'name', e.target.value)}
+                  className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Chase Checking"
                 />
               </div>
-              <AssigneeSelect
-                people={people}
-                value={account.assignedTo ?? null}
-                onChange={val => updateAccount(account.id, 'assignedTo', val)}
-              />
-              <button
-                onClick={() => deleteAccount(account.id)}
-                className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-                title="Remove account"
-              >
-                <TrashIcon />
-              </button>
+              {/* Subrow 2: amount · assignee · trash */}
+              <div className="flex items-center gap-2 sm:contents">
+                <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
+                  <span className="text-gray-500 text-sm mr-1">$</span>
+                  <input
+                    type="number"
+                    value={account.amount}
+                    onChange={e => updateAccount(account.id, 'amount', Number(e.target.value))}
+                    className="bg-transparent text-white text-sm w-full outline-none"
+                    min="0"
+                    step="100"
+                  />
+                </div>
+                <AssigneeSelect
+                  people={people}
+                  value={account.assignedTo ?? null}
+                  onChange={val => updateAccount(account.id, 'assignedTo', val)}
+                />
+                <button
+                  onClick={() => deleteAccount(account.id)}
+                  className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
+                  title="Remove account"
+                >
+                  <TrashIcon />
+                </button>
+              </div>
             </div>
           )
         })}

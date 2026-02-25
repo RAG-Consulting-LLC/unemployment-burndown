@@ -103,6 +103,14 @@ function CustomTooltip({ active, payload, emergencyFloor, hasBaseline }) {
         </div>
       )}
 
+      {/* One-time income injection */}
+      {d.oneTimeIncome && (
+        <div className="flex justify-between items-center mt-1 pt-1 border-t border-gray-700">
+          <span className="text-emerald-400 text-xs">One-time income</span>
+          <span className="text-emerald-400 text-xs font-bold">+{formatCurrency(d.oneTimeIncome)}</span>
+        </div>
+      )}
+
       {/* Floor note */}
       {emergencyFloor > 0 && (
         <div className="text-xs text-amber-500 mt-1 pt-1 border-t border-gray-700">
@@ -121,19 +129,30 @@ function CustomTooltip({ active, payload, emergencyFloor, hasBaseline }) {
         {d.oneTimeCost && (
           <span className="text-xs bg-orange-900/50 text-orange-400 border border-orange-700/40 px-1.5 py-0.5 rounded">Big expense</span>
         )}
+        {d.oneTimeIncome && (
+          <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-700/40 px-1.5 py-0.5 rounded">Income boost</span>
+        )}
       </div>
     </div>
   )
 }
 
-// ─── One-time expense dot rendered via Area's dot prop ───────────────────────
+// ─── One-time event dots rendered via Area's dot prop ────────────────────────
 function renderDot(props) {
   const { cx, cy, payload } = props
-  if (!payload?.oneTimeCost) return null
+  if (!payload?.oneTimeCost && !payload?.oneTimeIncome) return null
+  if (payload.oneTimeCost) {
+    return (
+      <g key={`dot-exp-${cx}-${cy}`}>
+        <circle cx={cx} cy={cy} r={10} fill="#f97316" opacity={0.15} />
+        <circle cx={cx} cy={cy} r={6} fill="#f97316" stroke="#7c2d12" strokeWidth={1.5} opacity={0.9} />
+      </g>
+    )
+  }
   return (
-    <g key={`dot-${cx}-${cy}`}>
-      <circle cx={cx} cy={cy} r={10} fill="#f97316" opacity={0.15} />
-      <circle cx={cx} cy={cy} r={6} fill="#f97316" stroke="#7c2d12" strokeWidth={1.5} opacity={0.9} />
+    <g key={`dot-inc-${cx}-${cy}`}>
+      <circle cx={cx} cy={cy} r={10} fill="#22c55e" opacity={0.15} />
+      <circle cx={cx} cy={cy} r={6} fill="#22c55e" stroke="#14532d" strokeWidth={1.5} opacity={0.9} />
     </g>
   )
 }
@@ -173,8 +192,9 @@ export default function BurndownChart({
     return filtered.filter((_, i) => i % step === 0 || i === filtered.length - 1)
   }, [mergedData, zoomMonths])
 
-  // One-time expense points count (only for legend/callouts)
+  // One-time event counts (for legend/callouts)
   const oneTimeCount = chartData.filter(d => d.oneTimeCost).length
+  const oneTimeIncomeCount = chartData.filter(d => d.oneTimeIncome).length
 
   const maxBalance = Math.max(...chartData.map(d => Math.max(d.balance, d.baseline ?? 0, d.balanceEssentialOnly ?? 0)), 1)
 
@@ -236,6 +256,12 @@ export default function BurndownChart({
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-3 h-3 rounded-full bg-orange-500" />
               One-time expense
+            </span>
+          )}
+          {oneTimeIncomeCount > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-full bg-emerald-500" />
+              One-time income
             </span>
           )}
           {emergencyFloor > 0 && (
@@ -305,7 +331,7 @@ export default function BurndownChart({
               tick={{ fill: '#6b7280', fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              width={52}
+              width={45}
               domain={[0, maxBalance * 1.08]}
             />
 
@@ -418,6 +444,11 @@ export default function BurndownChart({
         {oneTimeCount > 0 && (
           <span className="bg-orange-950/40 border border-orange-800/30 text-orange-400 px-2 py-1 rounded-md">
             {oneTimeCount} one-time expense{oneTimeCount !== 1 ? 's' : ''} plotted
+          </span>
+        )}
+        {oneTimeIncomeCount > 0 && (
+          <span className="bg-emerald-950/40 border border-emerald-800/30 text-emerald-400 px-2 py-1 rounded-md">
+            {oneTimeIncomeCount} one-time income injection{oneTimeIncomeCount !== 1 ? 's' : ''} plotted
           </span>
         )}
       </div>

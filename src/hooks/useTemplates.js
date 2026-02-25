@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 
 const STORAGE_KEY = 'burndown_templates'
+const ACTIVE_KEY  = 'burndown_active_template_id'
 
 function loadFromStorage() {
   try {
@@ -19,9 +20,35 @@ function saveToStorage(templates) {
   }
 }
 
+function loadActiveIdFromStorage(templates) {
+  try {
+    const raw = localStorage.getItem(ACTIVE_KEY)
+    if (!raw) return null
+    const id = JSON.parse(raw)
+    return templates.some(t => t.id === id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+function persistActiveId(id) {
+  try {
+    if (id == null) localStorage.removeItem(ACTIVE_KEY)
+    else localStorage.setItem(ACTIVE_KEY, JSON.stringify(id))
+  } catch {}
+}
+
 export function useTemplates() {
   const [templates, setTemplates] = useState(() => loadFromStorage())
-  const [activeTemplateId, setActiveTemplateId] = useState(null)
+  const [activeTemplateId, _setActiveTemplateId] = useState(() => {
+    const tpls = loadFromStorage()
+    return loadActiveIdFromStorage(tpls)
+  })
+
+  const setActiveTemplateId = useCallback((id) => {
+    _setActiveTemplateId(id)
+    persistActiveId(id)
+  }, [])
 
   // Persist and update state together
   function persist(next) {
@@ -41,7 +68,7 @@ export function useTemplates() {
     persist(next)
     setActiveTemplateId(template.id)
     return template
-  }, [templates])
+  }, [templates, setActiveTemplateId])
 
   // Overwrite an existing template's snapshot (keeping id, name)
   const overwrite = useCallback((id, snapshot) => {
@@ -66,7 +93,7 @@ export function useTemplates() {
     const next = templates.filter(t => t.id !== id)
     persist(next)
     if (activeTemplateId === id) setActiveTemplateId(null)
-  }, [templates, activeTemplateId])
+  }, [templates, activeTemplateId, setActiveTemplateId])
 
   // Get a template's snapshot by id
   const getSnapshot = useCallback((id) => {

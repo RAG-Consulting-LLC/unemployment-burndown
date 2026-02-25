@@ -12,7 +12,8 @@ const ALL_SECTIONS = [
   { id: 'sec-expenses',     label: 'Expenses',      sectionKey: null },
   { id: 'sec-investments',  label: 'Investments',   sectionKey: 'investments' },
   { id: 'sec-onetimes',      label: 'One-Time',      sectionKey: 'onetimes' },
-  { id: 'sec-onetimeincome', label: 'Injections',   sectionKey: 'onetimeIncome' },
+  { id: 'sec-onetimeincome',  label: 'Injections',   sectionKey: 'onetimeIncome' },
+  { id: 'sec-monthlyincome', label: 'Mo. Income',   sectionKey: 'monthlyIncome' },
   { id: 'sec-assets',        label: 'Assets',        sectionKey: 'assets' },
 ]
 

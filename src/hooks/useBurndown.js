@@ -15,9 +15,9 @@ import dayjs from 'dayjs'
  *   partnerIncomeMonthly   number  second household income
  *   partnerStartDate       string  ISO date partner income begins
  */
-export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses = [], extraCash = 0, investments = [], oneTimeIncome = []) {
+export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses = [], extraCash = 0, investments = [], oneTimeIncome = [], monthlyIncome = [], startDate = null) {
   return useMemo(() => {
-    const today = dayjs('2026-02-21')
+    const today = dayjs(startDate || new Date())
 
     // --- Benefit window ---
     const rawBenefitStart = dayjs(unemployment.startDate)
@@ -129,6 +129,14 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       const partnerActive = partnerStartDate && !currentDate.isBefore(partnerStartDate)
       if (partnerActive) income += partnerIncome
 
+      // Recurring monthly income sources
+      for (const src of monthlyIncome) {
+        if (!src.monthlyAmount) continue
+        if (src.startDate && dayjs(src.startDate).isAfter(currentDate)) continue
+        if (src.endDate && dayjs(src.endDate).isBefore(currentDate)) continue
+        income += Number(src.monthlyAmount) || 0
+      }
+
       // Freelance ramp: find highest tier whose monthOffset <= i
       if (freelanceRamp.length > 0) {
         const activeTier = [...freelanceRamp]
@@ -188,8 +196,25 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
 
     // Current-month net burn (no one-time)
     const currentInBenefit = today.isAfter(benefitStart) && today.isBefore(benefitEnd)
-    let currentIncome = (currentInBenefit ? monthlyBenefits : 0) + sideIncome
+    const activeMonthlyIncomeNow = monthlyIncome
+      .filter(src => {
+        if (!src.monthlyAmount) return false
+        if (src.startDate && dayjs(src.startDate).isAfter(today)) return false
+        if (src.endDate && dayjs(src.endDate).isBefore(today)) return false
+        return true
+      })
+      .reduce((s, src) => s + (Number(src.monthlyAmount) || 0), 0)
+    const jobActiveNow = jobStartDate && !today.isBefore(jobStartDate)
+    const partnerActiveNow = partnerStartDate && !today.isBefore(partnerStartDate)
+    let currentIncome = (currentInBenefit ? monthlyBenefits : 0) + activeMonthlyIncomeNow
+    if (jobActiveNow) {
+      currentIncome += jobSalary
+    } else {
+      currentIncome += sideIncome
+    }
+    if (partnerActiveNow) currentIncome += partnerIncome
     const currentNetBurn = effectiveExpenses + monthlyInvestments - currentIncome
+    const totalMonthlyIncome = activeMonthlyIncomeNow
 
     return {
       dataPoints,
@@ -199,9 +224,10 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       effectiveExpenses,
       monthlyBenefits,
       monthlyInvestments,
+      totalMonthlyIncome,
       benefitEnd: benefitEnd.toDate(),
       benefitStart: benefitStart.toDate(),
       emergencyFloor,
     }
-  }, [savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome])
+  }, [savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome, monthlyIncome, startDate])
 }

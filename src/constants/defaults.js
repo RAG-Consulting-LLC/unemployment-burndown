@@ -13,6 +13,7 @@ export const DEFAULTS = {
     startDate: '2026-03-07',
     weeklyAmount: 450,
     durationWeeks: 26,
+    assignedTo: null,
   },
   expenses: [
     { id: 1, category: 'Rent / Mortgage',    monthlyAmount: 1500, essential: true,  assignedTo: null },
@@ -38,6 +39,7 @@ export const DEFAULTS = {
   },
   oneTimeExpenses: [],
   oneTimeIncome: [],
+  monthlyIncome: [],
   assets: [],
   investments: [],
   subscriptions: [

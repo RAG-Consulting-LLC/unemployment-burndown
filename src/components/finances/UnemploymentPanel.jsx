@@ -1,7 +1,8 @@
 import { formatCurrency, formatDate } from '../../utils/formatters'
 import dayjs from 'dayjs'
+import AssigneeSelect from '../people/AssigneeSelect'
 
-export default function UnemploymentPanel({ value, onChange }) {
+export default function UnemploymentPanel({ value, onChange, furloughDate, onFurloughDateChange, people = [] }) {
   function update(field, val) {
     onChange({ ...value, [field]: val })
   }
@@ -12,6 +13,18 @@ export default function UnemploymentPanel({ value, onChange }) {
 
   return (
     <div className="space-y-4">
+      {onFurloughDateChange && (
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 font-medium">Simulation Start Date</label>
+          <input
+            type="date"
+            value={furloughDate || ''}
+            onChange={e => onFurloughDateChange(e.target.value)}
+            className="w-full sm:w-48 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+          />
+          <p className="text-xs text-gray-600 mt-1">The date the burndown simulation starts from.</p>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1 font-medium">Benefits Start Date</label>
@@ -52,6 +65,18 @@ export default function UnemploymentPanel({ value, onChange }) {
           </div>
         </div>
       </div>
+
+      {/* Recipient */}
+      {people.length > 0 && (
+        <div>
+          <label className="block text-xs text-gray-500 mb-1 font-medium">Benefits Recipient</label>
+          <AssigneeSelect
+            people={people}
+            value={value.assignedTo ?? null}
+            onChange={val => onChange({ ...value, assignedTo: val })}
+          />
+        </div>
+      )}
 
       {/* Summary */}
       <div className="bg-gray-700/40 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">

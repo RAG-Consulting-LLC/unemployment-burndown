@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { DEFAULTS } from './constants/defaults'
 import { useBurndown } from './hooks/useBurndown'
 import { useTemplates } from './hooks/useTemplates'
+import { useActivityLog } from './hooks/useActivityLog'
 import Header from './components/layout/Header'
 import SectionCard from './components/layout/SectionCard'
 import RunwayBanner from './components/dashboard/RunwayBanner'
@@ -12,6 +13,7 @@ import UnemploymentPanel from './components/finances/UnemploymentPanel'
 import ExpensePanel from './components/finances/ExpensePanel'
 import OneTimeExpensePanel from './components/finances/OneTimeExpensePanel'
 import OneTimeIncomePanel from './components/finances/OneTimeIncomePanel'
+import MonthlyIncomePanel from './components/finances/MonthlyIncomePanel'
 import AssetsPanel from './components/finances/AssetsPanel'
 import InvestmentsPanel from './components/finances/InvestmentsPanel'
 import SubscriptionsPanel from './components/finances/SubscriptionsPanel'
@@ -24,14 +26,16 @@ import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
 import ViewMenu from './components/layout/ViewMenu'
 import CloudSaveStatus from './components/layout/CloudSaveStatus'
+import ActivityLogPanel from './components/layout/ActivityLogPanel'
+import FinancialSidebar from './components/layout/FinancialSidebar'
 import { useS3Storage } from './hooks/useS3Storage'
 
 // ---------------------------------------------------------------------------
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
 // Used inside useMemo to compute template results for the Compare tab.
 // ---------------------------------------------------------------------------
-function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome = []) {
-  const today = dayjs('2026-02-21')
+function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome = [], monthlyIncome = [], startDate = null) {
+  const today = dayjs(startDate || new Date())
 
   const rawBenefitStart = dayjs(unemployment.startDate)
   const delayWeeks = Number(whatIf.benefitDelayWeeks) || 0
@@ -93,6 +97,12 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
     if (jobActive) income += jobSalary
     const partnerActive = partnerStartDate && !currentDate.isBefore(partnerStartDate)
     if (partnerActive) income += partnerIncome
+    for (const src of monthlyIncome) {
+      if (!src.monthlyAmount) continue
+      if (src.startDate && dayjs(src.startDate).isAfter(currentDate)) continue
+      if (src.endDate && dayjs(src.endDate).isBefore(currentDate)) continue
+      income += Number(src.monthlyAmount) || 0
+    }
     if (freelanceRamp.length > 0) {
       const activeTier = [...freelanceRamp].filter(t => t.monthOffset <= i).sort((a, b) => b.monthOffset - a.monthOffset)[0]
       if (activeTier) income += Number(activeTier.monthlyAmount) || 0
@@ -144,14 +154,17 @@ const DEFAULT_VIEW = {
     creditCards:   true,
     investments:   true,
     onetimes:      true,
-    onetimeIncome: true,
-    assets:        true,
+    onetimeIncome:   true,
+    monthlyIncome:   true,
+    assets:          true,
   },
 }
 
 export default function App() {
   const [presentationMode, setPresentationMode] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   const [viewSettings, setViewSettings] = useState(DEFAULT_VIEW)
+  const [furloughDate, setFurloughDate] = useState(DEFAULTS.furloughDate)
   const [people, setPeople] = useState(DEFAULTS.people)
   const [savingsAccounts, setSavingsAccounts] = useState(DEFAULTS.savingsAccounts)
   const [unemployment, setUnemployment] = useState(DEFAULTS.unemployment)
@@ -163,6 +176,7 @@ export default function App() {
   const [subscriptions, setSubscriptions] = useState(DEFAULTS.subscriptions)
   const [creditCards, setCreditCards] = useState(DEFAULTS.creditCards)
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
+  const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
 
   const {
     templates,
@@ -177,14 +191,18 @@ export default function App() {
     bulkLoad,
   } = useTemplates()
 
+  const { entries: logEntries, addEntry, clearLog, userName, setUserName } = useActivityLog()
+  const dirtySections = useRef(new Set())
+
   const s3Storage = useS3Storage()
 
   function buildSnapshot() {
-    return { people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, assets, investments, subscriptions, creditCards }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards }
   }
 
   function applySnapshot(snapshot) {
     if (!snapshot) return
+    if (snapshot.furloughDate) setFurloughDate(snapshot.furloughDate)
     if (snapshot.people) setPeople(snapshot.people)
     if (snapshot.savingsAccounts) setSavingsAccounts(snapshot.savingsAccounts)
     if (snapshot.unemployment) setUnemployment(snapshot.unemployment)
@@ -193,6 +211,7 @@ export default function App() {
     if (snapshot.whatIf) setWhatIf({ ...DEFAULTS.whatIf, ...snapshot.whatIf })
     if (snapshot.oneTimeExpenses) setOneTimeExpenses(snapshot.oneTimeExpenses)
     if (snapshot.oneTimeIncome) setOneTimeIncome(snapshot.oneTimeIncome)
+    if (snapshot.monthlyIncome) setMonthlyIncome(snapshot.monthlyIncome)
     if (snapshot.assets) setAssets(snapshot.assets)
     if (snapshot.investments) setInvestments(snapshot.investments)
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
@@ -206,6 +225,7 @@ export default function App() {
       savedAt: new Date().toISOString(),
       state: buildSnapshot(),
       templates,
+      activeTemplateId,
     }
   }
 
@@ -213,6 +233,7 @@ export default function App() {
     if (!data) return
     if (data.state) applySnapshot(data.state)
     if (Array.isArray(data.templates)) bulkLoad(data.templates)
+    if (data.activeTemplateId != null) setActiveTemplateId(data.activeTemplateId)
   }
 
   // When S3 storage loads data on mount, apply it
@@ -220,6 +241,7 @@ export default function App() {
     if (s3Storage.restoreData) {
       applyFullState(s3Storage.restoreData)
       s3Storage.clearRestoreData()
+      addEntry('load', 'Data loaded from cloud')
     }
   }, [s3Storage.restoreData]) // eslint-disable-line
 
@@ -230,17 +252,40 @@ export default function App() {
     clearTimeout(autoSaveTimer.current)
     autoSaveTimer.current = setTimeout(() => {
       s3Storage.save(buildFullState())
+      if (dirtySections.current.size > 0) {
+        addEntry('save', `Auto-saved: ${[...dirtySections.current].join(', ')}`)
+        dirtySections.current.clear()
+      }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, assets, investments, subscriptions, creditCards, templates]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates]) // eslint-disable-line
 
-  function handleSave(id)       { overwrite(id, buildSnapshot()) }
-  function handleSaveNew(name)  { saveNew(name, buildSnapshot()) }
+  function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
+  function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
   function handleLoad(id) {
     const snapshot = getSnapshot(id)
     applySnapshot(snapshot)
     setActiveTemplateId(id)
+    addEntry('load', `Template "${templates.find(t => t.id === id)?.name || id}" loaded`)
   }
+
+  // Tracked change handlers — mark sections dirty so auto-save can log what changed
+  function track(setter, label) {
+    return (v) => { setter(v); dirtySections.current.add(label) }
+  }
+  const onSavingsChange      = track(setSavingsAccounts, 'Cash & savings')
+  const onExpensesChange     = track(setExpenses,        'Monthly expenses')
+  const onUnemploymentChange = track(setUnemployment,    'Unemployment')
+  const onFurloughChange     = track(setFurloughDate,    'Furlough date')
+  const onPeopleChange       = track(setPeople,          'People')
+  const onWhatIfChange       = track(setWhatIf,          'What-if scenarios')
+  const onOneTimeExpChange   = track(setOneTimeExpenses, 'One-time expenses')
+  const onOneTimeIncChange   = track(setOneTimeIncome,   'One-time income')
+  const onMonthlyIncChange   = track(setMonthlyIncome,   'Monthly income')
+  const onAssetsChange       = track(setAssets,          'Assets')
+  const onInvestmentsChange  = track(setInvestments,     'Investments')
+  const onSubsChange         = track(setSubscriptions,   'Subscriptions')
+  const onCreditCardsChange  = track(setCreditCards,     'Credit cards')
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -265,10 +310,10 @@ export default function App() {
 
   // Base calculation (no what-if, no asset sales) — used for delta display
   const baseWhatIf = { ...DEFAULTS.whatIf }
-  const base = useBurndown(totalSavings, unemployment, expensesWithSubs, baseWhatIf, oneTimeExpenses, 0, investments, oneTimeIncome)
+  const base = useBurndown(totalSavings, unemployment, expensesWithSubs, baseWhatIf, oneTimeExpenses, 0, investments, oneTimeIncome, monthlyIncome, furloughDate)
 
   // With all what-if scenarios applied
-  const current = useBurndown(totalSavings, unemployment, expensesWithSubs, whatIf, oneTimeExpenses, assetProceeds, investments, oneTimeIncome)
+  const current = useBurndown(totalSavings, unemployment, expensesWithSubs, whatIf, oneTimeExpenses, assetProceeds, investments, oneTimeIncome, monthlyIncome, furloughDate)
 
   // Pre-compute burndown results for every saved template (for Compare tab)
   const templateResults = useMemo(() => {
@@ -296,7 +341,9 @@ export default function App() {
       const tInvestments  = s.investments  || []
       const tOneTime      = s.oneTimeExpenses || []
       const tOneTimeIncome = s.oneTimeIncome || []
-      results[t.id] = computeBurndown(tSavings, tUnemployment, tExpenses, tWhatIf, tOneTime, tAssetProceeds, tInvestments, tOneTimeIncome)
+      const tMonthlyIncome = s.monthlyIncome || []
+      const tFurloughDate = s.furloughDate || DEFAULTS.furloughDate
+      results[t.id] = computeBurndown(tSavings, tUnemployment, tExpenses, tWhatIf, tOneTime, tAssetProceeds, tInvestments, tOneTimeIncome, tMonthlyIncome, tFurloughDate)
     }
     return results
   }, [templates])
@@ -310,7 +357,8 @@ export default function App() {
     (Number(whatIf.benefitCutWeeks) || 0) > 0 ||
     !!whatIf.freezeDate ||
     ((Number(whatIf.jobOfferSalary) || 0) > 0 && !!whatIf.jobOfferStartDate) ||
-    (whatIf.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0)
+    (whatIf.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0) ||
+    ((Number(whatIf.partnerIncomeMonthly) || 0) > 0 && !!whatIf.partnerStartDate)
 
   return (
     <div className="min-h-screen theme-page" style={{ color: 'var(--text-primary)' }}>
@@ -333,19 +381,57 @@ export default function App() {
         />
       )}
 
+      {/* Activity log panel */}
+      {logOpen && (
+        <ActivityLogPanel
+          entries={logEntries}
+          onClose={() => setLogOpen(false)}
+          onClear={clearLog}
+          userName={userName}
+          onSetUserName={setUserName}
+        />
+      )}
+
       <Header
+        lastSaved={s3Storage.lastSaved}
+        savedBy={userName}
         rightSlot={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
             <CloudSaveStatus storage={s3Storage} />
+            {/* Activity log button */}
+            <button
+              onClick={() => setLogOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+              title="View activity log"
+              style={{
+                borderColor: 'var(--border-subtle)',
+                background: 'var(--bg-input)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" strokeLinecap="round" />
+              </svg>
+              <span className="hidden sm:inline">Log</span>
+              {logEntries.length > 0 && (
+                <span
+                  className="text-xs font-semibold px-1 rounded-full tabular-nums"
+                  style={{ background: 'var(--accent-blue)', color: '#fff', fontSize: '10px', lineHeight: '16px', minWidth: 16, textAlign: 'center' }}
+                >
+                  {logEntries.length > 99 ? '99+' : logEntries.length}
+                </span>
+              )}
+            </button>
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
             <button
               onClick={() => setPresentationMode(true)}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-700/60 bg-blue-900/20 text-blue-300 hover:bg-blue-800/40 hover:border-blue-600 transition-colors"
+              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-700/60 bg-blue-900/20 text-blue-300 hover:bg-blue-800/40 hover:border-blue-600 transition-colors"
               title="Open presentation mode"
             >
               <span>📊</span>
-              <span className="hidden sm:inline">Present</span>
+              <span>Present</span>
             </button>
             <TemplateManager
               templates={templates}
@@ -363,7 +449,27 @@ export default function App() {
 
       <TableOfContents visibleSections={viewSettings.sections} />
 
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+      <FinancialSidebar
+        totalSavings={totalSavings}
+        assetProceeds={assetProceeds}
+        effectiveExpenses={current.effectiveExpenses}
+        monthlyBenefits={current.monthlyBenefits}
+        monthlyInvestments={current.monthlyInvestments}
+        currentNetBurn={current.currentNetBurn}
+        totalRunwayMonths={current.totalRunwayMonths}
+        benefitEnd={current.benefitEnd}
+        savingsAccounts={savingsAccounts}
+        expenses={expenses}
+        subscriptions={subscriptions}
+        creditCards={creditCards}
+        investments={investments}
+        oneTimeExpenses={oneTimeExpenses}
+        oneTimeIncome={oneTimeIncome}
+        monthlyIncome={monthlyIncome}
+        unemployment={unemployment}
+      />
+
+      <main className="max-w-5xl mx-auto px-4 py-6 pb-20 xl:pb-6 space-y-5">
 
         {/* Hero banner */}
         <div id="sec-runway" className="scroll-mt-20">
@@ -392,7 +498,7 @@ export default function App() {
         {/* People / Household */}
         {viewSettings.sections.household && (
           <SectionCard id="sec-household" title="Household / People" className="scroll-mt-20">
-            <PeopleManager people={people} onChange={setPeople} />
+            <PeopleManager people={people} onChange={onPeopleChange} />
           </SectionCard>
         )}
 
@@ -401,11 +507,11 @@ export default function App() {
           {/* Left column */}
           <div className="space-y-5">
             <SectionCard id="sec-savings" title="Cash & Savings Accounts" className="scroll-mt-20">
-              <SavingsPanel accounts={savingsAccounts} onChange={setSavingsAccounts} people={people} />
+              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} />
             </SectionCard>
 
             <SectionCard id="sec-unemployment" title="Unemployment Benefits" className="scroll-mt-20">
-              <UnemploymentPanel value={unemployment} onChange={setUnemployment} />
+              <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} />
             </SectionCard>
           </div>
 
@@ -415,7 +521,7 @@ export default function App() {
               <SectionCard id="sec-whatif" title="What-If Scenarios" className="scroll-mt-20">
                 <WhatIfPanel
                   value={whatIf}
-                  onChange={setWhatIf}
+                  onChange={onWhatIfChange}
                   onReset={() => {
                     const snap = activeTemplateId ? getSnapshot(activeTemplateId) : null
                     setWhatIf(snap?.whatIf ? { ...DEFAULTS.whatIf, ...snap.whatIf } : DEFAULTS.whatIf)
@@ -461,6 +567,15 @@ export default function App() {
                   <p className="text-xs text-faint mt-0.5">added to monthly burn</p>
                 </div>
               )}
+              {current.totalMonthlyIncome > 0 && (
+                <div className="theme-card rounded-xl border p-4 col-span-2">
+                  <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">Monthly Income / Mo</p>
+                  <p className="text-xl font-bold" style={{ color: 'var(--accent-emerald)' }}>
+                    +${Math.round(current.totalMonthlyIncome).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-faint mt-0.5">reduces monthly burn</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -468,47 +583,54 @@ export default function App() {
         {/* Subscriptions — full width */}
         {viewSettings.sections.subscriptions && (
           <SectionCard id="sec-subscriptions" title="Subscriptions" className="scroll-mt-20">
-            <SubscriptionsPanel subscriptions={subscriptions} onChange={setSubscriptions} people={people} />
+            <SubscriptionsPanel subscriptions={subscriptions} onChange={onSubsChange} people={people} />
           </SectionCard>
         )}
 
         {/* Credit cards / outstanding debt — full width */}
         {viewSettings.sections.creditCards && (
           <SectionCard id="sec-creditcards" title="Credit Cards / Outstanding Debt" className="scroll-mt-20">
-            <CreditCardsPanel cards={creditCards} onChange={setCreditCards} people={people} />
+            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} />
           </SectionCard>
         )}
 
         {/* Monthly expense breakdown — full width */}
         <SectionCard id="sec-expenses" title="Monthly Expenses" className="scroll-mt-20">
-          <ExpensePanel expenses={expenses} onChange={setExpenses} people={people} />
+          <ExpensePanel expenses={expenses} onChange={onExpensesChange} people={people} />
         </SectionCard>
 
         {/* Monthly investments — full width */}
         {viewSettings.sections.investments && (
           <SectionCard id="sec-investments" title="Monthly Investments" className="scroll-mt-20">
-            <InvestmentsPanel investments={investments} onChange={setInvestments} people={people} />
+            <InvestmentsPanel investments={investments} onChange={onInvestmentsChange} people={people} />
           </SectionCard>
         )}
 
         {/* One-time expenses — full width */}
         {viewSettings.sections.onetimes && (
           <SectionCard id="sec-onetimes" title="One-Time Expenses" className="scroll-mt-20">
-            <OneTimeExpensePanel expenses={oneTimeExpenses} onChange={setOneTimeExpenses} people={people} />
+            <OneTimeExpensePanel expenses={oneTimeExpenses} onChange={onOneTimeExpChange} people={people} />
           </SectionCard>
         )}
 
         {/* One-time income injections — full width */}
         {viewSettings.sections.onetimeIncome && (
           <SectionCard id="sec-onetimeincome" title="One-Time Income Injections" className="scroll-mt-20">
-            <OneTimeIncomePanel items={oneTimeIncome} onChange={setOneTimeIncome} people={people} />
+            <OneTimeIncomePanel items={oneTimeIncome} onChange={onOneTimeIncChange} people={people} />
+          </SectionCard>
+        )}
+
+        {/* Monthly income — full width */}
+        {viewSettings.sections.monthlyIncome && (
+          <SectionCard id="sec-monthlyincome" title="Monthly Income" className="scroll-mt-20">
+            <MonthlyIncomePanel items={monthlyIncome} onChange={onMonthlyIncChange} people={people} />
           </SectionCard>
         )}
 
         {/* Sellable assets — full width */}
         {viewSettings.sections.assets && (
           <SectionCard id="sec-assets" title="Sellable Assets" className="scroll-mt-20">
-            <AssetsPanel assets={assets} onChange={setAssets} people={people} />
+            <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} />
           </SectionCard>
         )}
 

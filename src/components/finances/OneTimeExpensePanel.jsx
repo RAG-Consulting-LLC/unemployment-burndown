@@ -40,9 +40,9 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
         </p>
       ) : (
         <>
-          {/* Column headers */}
+          {/* Column headers — desktop only */}
           <div
-            className="grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
+            className="hidden sm:grid items-center gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold px-1"
             style={{ gridTemplateColumns: '20px 1fr 130px 110px 32px 32px' }}
           >
             <span></span>
@@ -58,57 +58,62 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
             {expenses.map(expense => (
               <div
                 key={expense.id}
-                className={`grid items-center gap-2 rounded-lg transition-all ${
+                className={`row-onetimeexp-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
                   draggingId === expense.id ? 'opacity-40' : ''
                 } ${
                   overedId === expense.id && draggingId !== expense.id
                     ? 'ring-2 ring-orange-500/50 ring-inset'
                     : ''
                 }`}
-                style={{ gridTemplateColumns: '20px 1fr 130px 110px 32px 32px' }}
                 {...getItemProps(expense.id)}
               >
-                <div
-                  className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none"
-                  {...dragHandleProps(expense.id)}
-                >
-                  <DragHandle />
-                </div>
-                <input
-                  type="text"
-                  value={expense.description}
-                  onChange={e => updateExpense(expense.id, 'description', e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-                  placeholder="Description"
-                />
-                <input
-                  type="date"
-                  value={expense.date}
-                  onChange={e => updateExpense(expense.id, 'date', e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-full"
-                />
-                <div className="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
-                  <span className="text-gray-500 text-sm mr-1">$</span>
+                {/* Subrow 1: drag · description */}
+                <div className="flex items-center gap-2 sm:contents">
+                  <div
+                    className="text-gray-600 hover:text-gray-400 transition-colors flex items-center justify-center select-none flex-shrink-0"
+                    {...dragHandleProps(expense.id)}
+                  >
+                    <DragHandle />
+                  </div>
                   <input
-                    type="number"
-                    value={expense.amount}
-                    onChange={e => updateExpense(expense.id, 'amount', Number(e.target.value))}
-                    className="bg-transparent text-white text-sm w-full outline-none"
-                    min="0"
-                    step="10"
+                    type="text"
+                    value={expense.description}
+                    onChange={e => updateExpense(expense.id, 'description', e.target.value)}
+                    className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                    placeholder="Description"
                   />
                 </div>
-                <AssigneeSelect
-                  people={people}
-                  value={expense.assignedTo ?? null}
-                  onChange={val => updateExpense(expense.id, 'assignedTo', val)}
-                />
-                <button
-                  onClick={() => deleteExpense(expense.id)}
-                  className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
-                >
-                  <TrashIcon />
-                </button>
+                {/* Subrow 2: date · amount · assignee · trash */}
+                <div className="flex items-center gap-2 sm:contents">
+                  <input
+                    type="date"
+                    value={expense.date}
+                    onChange={e => updateExpense(expense.id, 'date', e.target.value)}
+                    className="min-w-0 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                  <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
+                    <span className="text-gray-500 text-sm mr-1">$</span>
+                    <input
+                      type="number"
+                      value={expense.amount}
+                      onChange={e => updateExpense(expense.id, 'amount', Number(e.target.value))}
+                      className="bg-transparent text-white text-sm w-full outline-none"
+                      min="0"
+                      step="10"
+                    />
+                  </div>
+                  <AssigneeSelect
+                    people={people}
+                    value={expense.assignedTo ?? null}
+                    onChange={val => updateExpense(expense.id, 'assignedTo', val)}
+                  />
+                  <button
+                    onClick={() => deleteExpense(expense.id)}
+                    className="text-gray-600 hover:text-red-400 transition-colors flex items-center justify-center"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

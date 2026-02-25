@@ -81,3 +81,45 @@ body {
 .text-secondary { color: var(--text-secondary) !important; }
 .text-muted     { color: var(--text-muted)     !important; }
 .text-faint     { color: var(--text-faint)     !important; }
+
+/* ─── Mobile-first improvements ────────────────────────────────── */
+
+/* Faster tap response — removes 300ms double-tap delay on iOS */
+button, a {
+  touch-action: manipulation;
+}
+
+/* Prevent iOS Safari from zooming in when focusing inputs with font-size < 16px */
+@media (max-width: 639px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Desktop grid-template-columns for finance panel rows (applied at sm+) */
+@media (min-width: 640px) {
+  .row-savings-sm    { grid-template-columns: 20px 32px 1fr 130px 32px 32px; }
+  .row-expense-sm    { grid-template-columns: 20px 1fr 110px 80px 32px 32px; }
+  .row-creditcard-sm { grid-template-columns: 20px 1fr 130px 130px 32px 32px; }
+  .row-invest-sm     { grid-template-columns: 20px 1fr 120px 72px 32px 32px; }
+  .row-onetimeexp-sm { grid-template-columns: 20px 1fr 130px 110px 32px 32px; }
+  .row-assets-sm     { grid-template-columns: 20px 1fr 130px 90px 32px 32px; }
+}
+
+/* Mobile: style panel rows as small cards for readability */
+@media (max-width: 639px) {
+  .row-savings-sm,
+  .row-expense-sm,
+  .row-creditcard-sm,
+  .row-invest-sm,
+  .row-onetimeexp-sm,
+  .row-assets-sm {
+    background-color: var(--bg-hover);
+    border-radius: 8px;
+    padding: 8px;
+  }
+}
