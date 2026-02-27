@@ -12,6 +12,7 @@
     "dayjs": "^1.11.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-plaid-link": "^3.6.0",
     "recharts": "^2.15.0"
   },
   "devDependencies": {
