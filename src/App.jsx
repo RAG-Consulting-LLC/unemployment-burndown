@@ -23,6 +23,7 @@ import CreditCardsPanel from './components/finances/CreditCardsPanel'
 import WhatIfPanel from './components/scenarios/WhatIfPanel'
 import TemplateManager from './components/templates/TemplateManager'
 import PeopleManager from './components/people/PeopleManager'
+import PersonFilter from './components/people/PersonFilter'
 import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
@@ -190,6 +191,7 @@ function AuthenticatedApp({ logout }) {
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
+  const [filterPersonId, setFilterPersonId] = useState(null) // null = all, person.id = filter, 'unassigned' = unassigned only
 
   const {
     templates,
@@ -536,6 +538,13 @@ function AuthenticatedApp({ logout }) {
 
       <TableOfContents visibleSections={viewSettings.sections} />
 
+      {/* Person filter bar */}
+      {people.length > 0 && (
+        <div className="max-w-5xl mx-auto px-4 pt-4">
+          <PersonFilter people={people} value={filterPersonId} onChange={setFilterPersonId} />
+        </div>
+      )}
+
       <FinancialSidebar
         totalSavings={totalSavings}
         assetProceeds={assetProceeds}
@@ -555,6 +564,7 @@ function AuthenticatedApp({ logout }) {
         monthlyIncome={monthlyIncome}
         unemployment={unemployment}
         people={people}
+        filterPersonId={filterPersonId}
       />
 
       <main className="max-w-5xl mx-auto px-4 py-6 main-bottom-pad space-y-5">
@@ -598,11 +608,11 @@ function AuthenticatedApp({ logout }) {
           {/* Left column */}
           <div className="space-y-5">
             <SectionCard id="sec-savings" title="Cash & Savings Accounts" className="scroll-mt-20">
-              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} />
+              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} filterPersonId={filterPersonId} />
             </SectionCard>
 
             <SectionCard id="sec-unemployment" title="Unemployment Benefits" className="scroll-mt-20">
-              <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} />
+              <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} filterPersonId={filterPersonId} />
             </SectionCard>
           </div>
 
@@ -674,54 +684,54 @@ function AuthenticatedApp({ logout }) {
         {/* Subscriptions — full width */}
         {viewSettings.sections.subscriptions && (
           <SectionCard id="sec-subscriptions" title="Subscriptions" className="scroll-mt-20">
-            <SubscriptionsPanel subscriptions={subscriptions} onChange={onSubsChange} people={people} />
+            <SubscriptionsPanel subscriptions={subscriptions} onChange={onSubsChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* Credit cards / outstanding debt — full width */}
         {viewSettings.sections.creditCards && (
           <SectionCard id="sec-creditcards" title="Credit Cards / Outstanding Debt" className="scroll-mt-20">
-            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} />
+            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* Monthly expense breakdown — full width */}
         <SectionCard id="sec-expenses" title="Monthly Expenses" className="scroll-mt-20">
-          <ExpensePanel expenses={expenses} onChange={onExpensesChange} people={people} />
+          <ExpensePanel expenses={expenses} onChange={onExpensesChange} people={people} filterPersonId={filterPersonId} />
         </SectionCard>
 
         {/* Monthly investments — full width */}
         {viewSettings.sections.investments && (
           <SectionCard id="sec-investments" title="Monthly Investments" className="scroll-mt-20">
-            <InvestmentsPanel investments={investments} onChange={onInvestmentsChange} people={people} />
+            <InvestmentsPanel investments={investments} onChange={onInvestmentsChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* One-time expenses — full width */}
         {viewSettings.sections.onetimes && (
           <SectionCard id="sec-onetimes" title="One-Time Expenses" className="scroll-mt-20">
-            <OneTimeExpensePanel expenses={oneTimeExpenses} onChange={onOneTimeExpChange} people={people} />
+            <OneTimeExpensePanel expenses={oneTimeExpenses} onChange={onOneTimeExpChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* One-time income injections — full width */}
         {viewSettings.sections.onetimeIncome && (
           <SectionCard id="sec-onetimeincome" title="One-Time Income Injections" className="scroll-mt-20">
-            <OneTimeIncomePanel items={oneTimeIncome} onChange={onOneTimeIncChange} people={people} />
+            <OneTimeIncomePanel items={oneTimeIncome} onChange={onOneTimeIncChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* Monthly income — full width */}
         {viewSettings.sections.monthlyIncome && (
           <SectionCard id="sec-monthlyincome" title="Monthly Income" className="scroll-mt-20">
-            <MonthlyIncomePanel items={monthlyIncome} onChange={onMonthlyIncChange} people={people} />
+            <MonthlyIncomePanel items={monthlyIncome} onChange={onMonthlyIncChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 
         {/* Sellable assets — full width */}
         {viewSettings.sections.assets && (
           <SectionCard id="sec-assets" title="Sellable Assets" className="scroll-mt-20">
-            <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} />
+            <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} filterPersonId={filterPersonId} />
           </SectionCard>
         )}
 

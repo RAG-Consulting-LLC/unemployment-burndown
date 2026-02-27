@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -79,7 +80,7 @@ function UtilBadge({ balance, limit }) {
   )
 }
 
-export default function CreditCardsPanel({ cards, onChange, people = [] }) {
+export default function CreditCardsPanel({ cards, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(cards, onChange)
 
   function updateCard(id, field, val) {
@@ -125,7 +126,9 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
         </p>
       ) : (
         <div className="space-y-3">
-          {cards.map(card => (
+          {cards.map(card => {
+            const dimmed = filterPersonId && !matchesPersonFilter(card.assignedTo, filterPersonId)
+            return (
             <div
               key={card.id}
               className={`rounded-xl border transition-all ${
@@ -134,7 +137,7 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                 overedId === card.id && draggingId !== card.id
                   ? 'ring-2 ring-blue-500/50'
                   : ''
-              }`}
+              } ${dimmed ? 'opacity-25' : ''}`}
               style={{ background: 'var(--bg-input)', borderColor: 'var(--border-input)' }}
               {...getItemProps(card.id)}
             >
@@ -263,7 +266,8 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                 <UtilBadge balance={Number(card.balance) || 0} limit={Number(card.creditLimit) || 0} />
               </div>
             </div>
-          ))}
+          )})}
+
         </div>
       )}
 
