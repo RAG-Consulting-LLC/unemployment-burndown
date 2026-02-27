@@ -31,9 +31,12 @@ import CloudSaveStatus from './components/layout/CloudSaveStatus'
 import ActivityLogPanel from './components/layout/ActivityLogPanel'
 import FinancialSidebar from './components/layout/FinancialSidebar'
 import { useS3Storage } from './hooks/useS3Storage'
+import { usePlaid } from './hooks/usePlaid'
 import { diffArray, diffObject, diffPrimitive } from './utils/diffSection'
 import { CommentsProvider } from './context/CommentsContext'
 import CommentsPanel from './components/comments/CommentsPanel'
+import PlaidLinkButton from './components/plaid/PlaidLinkButton'
+import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
 
 // ---------------------------------------------------------------------------
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
@@ -162,6 +165,7 @@ const DEFAULT_VIEW = {
     onetimeIncome:   true,
     monthlyIncome:   true,
     assets:          true,
+    plaidAccounts:   true,
   },
 }
 
@@ -209,6 +213,15 @@ function AuthenticatedApp({ logout }) {
   const dirtySections = useRef(new Set())
 
   const s3Storage = useS3Storage()
+
+  // Plaid integration — auto-updates savings & credit card balances from bank data
+  const handlePlaidSync = (updatedFullState) => {
+    if (updatedFullState) {
+      applyFullState(updatedFullState)
+      addEntry('sync', 'Plaid sync: balances updated from bank')
+    }
+  }
+  const plaid = usePlaid({ onSyncComplete: handlePlaidSync })
 
   function buildSnapshot() {
     return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards }
@@ -485,6 +498,15 @@ function AuthenticatedApp({ logout }) {
               <span className="hidden sm:inline">Sign out</span>
             </button>
             <CloudSaveStatus storage={s3Storage} />
+            {import.meta.env.VITE_PLAID_API_URL && (
+              <PlaidLinkButton
+                createLinkToken={plaid.createLinkToken}
+                exchangeToken={plaid.exchangeToken}
+                syncAll={plaid.syncAll}
+                linkedCount={plaid.linkedItems.length}
+                syncing={plaid.syncing}
+              />
+            )}
             {/* Activity log button */}
             <button
               onClick={() => setLogOpen(true)}
@@ -682,6 +704,23 @@ function AuthenticatedApp({ logout }) {
         {viewSettings.sections.creditCards && (
           <SectionCard id="sec-creditcards" title="Credit Cards / Outstanding Debt" className="scroll-mt-20">
             <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} />
+          </SectionCard>
+        )}
+
+        {/* Connected bank accounts via Plaid — full width */}
+        {viewSettings.sections.plaidAccounts && import.meta.env.VITE_PLAID_API_URL && (
+          <SectionCard id="sec-plaid" title="Connected Bank Accounts" className="scroll-mt-20">
+            <ConnectedAccountsPanel
+              linkedItems={plaid.linkedItems}
+              syncing={plaid.syncing}
+              lastSync={plaid.lastSync}
+              error={plaid.error}
+              loading={plaid.loading}
+              fetchAccounts={plaid.fetchAccounts}
+              syncAll={plaid.syncAll}
+              disconnect={plaid.disconnect}
+              hasFetched={plaid.hasFetched}
+            />
           </SectionCard>
         )}
 
