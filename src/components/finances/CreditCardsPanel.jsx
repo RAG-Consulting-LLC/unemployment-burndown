@@ -99,6 +99,7 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
       creditLimit: 0,
       apr: 0,
       statementCloseDay: '',
+      last4: '',
       assignedTo: null,
     }])
   }
@@ -259,6 +260,13 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                   max={28}
                   step={1}
                   placeholder="e.g. 15"
+                />
+                <DetailField
+                  label="Last 4"
+                  value={card.last4 || ''}
+                  onChange={val => updateCard(card.id, 'last4', String(val).slice(0, 4))}
+                  type="text"
+                  placeholder="1234"
                 />
                 <UtilBadge balance={Number(card.balance) || 0} limit={Number(card.creditLimit) || 0} />
               </div>

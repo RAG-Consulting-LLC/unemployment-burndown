@@ -1,0 +1,121 @@
+import { useState } from 'react'
+import CategoryDonutChart from './CategoryDonutChart'
+import MonthlySpendingBarChart from './MonthlySpendingBarChart'
+import TopMerchantsChart from './TopMerchantsChart'
+
+const CHART_DEFS = [
+  {
+    id: 'categories',
+    icon: '🥧',
+    label: 'Categories',
+    desc: 'Spending by category across all cards',
+  },
+  {
+    id: 'monthly',
+    icon: '📊',
+    label: 'Monthly Trend',
+    desc: 'Total spending per month over time',
+  },
+  {
+    id: 'merchants',
+    icon: '🏪',
+    label: 'Top Merchants',
+    desc: 'Where you spend the most',
+  },
+]
+
+export default function StatementChartTabs({ transactions = [], creditCards = [] }) {
+  const [activeId, setActiveId] = useState('categories')
+  const [hoveredId, setHoveredId] = useState(null)
+
+  const activeChart = CHART_DEFS.find(c => c.id === activeId)
+
+  return (
+    <div
+      className="theme-card rounded-xl border overflow-hidden"
+      style={{ borderColor: 'var(--border-default)' }}
+    >
+      {/* Tab bar */}
+      <div
+        className="flex items-stretch overflow-x-auto"
+        style={{
+          borderBottom: '1px solid var(--border-default)',
+          background: 'var(--bg-subtle, var(--bg-card))',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {CHART_DEFS.map((chart, idx) => {
+          const isActive = chart.id === activeId
+          const isHovered = chart.id === hoveredId
+
+          return (
+            <div key={chart.id} className="relative flex items-stretch flex-shrink-0">
+              {idx > 0 && (
+                <div
+                  className="w-px self-stretch"
+                  style={{ background: 'var(--border-subtle)', opacity: 0.6 }}
+                />
+              )}
+
+              <button
+                onClick={() => setActiveId(chart.id)}
+                onMouseEnter={() => setHoveredId(chart.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                className="relative flex items-center gap-1.5 px-3.5 py-3 text-sm font-medium transition-all duration-150"
+                style={{
+                  color: isActive
+                    ? 'var(--text-primary)'
+                    : isHovered
+                      ? 'var(--text-secondary, var(--text-primary))'
+                      : 'var(--text-muted)',
+                  background: isActive
+                    ? 'var(--bg-card)'
+                    : isHovered
+                      ? 'var(--bg-hover, rgba(255,255,255,0.04))'
+                      : 'transparent',
+                }}
+                title={chart.desc}
+              >
+                <span className="text-base leading-none">{chart.icon}</span>
+                <span className="hidden sm:inline whitespace-nowrap">{chart.label}</span>
+
+                {isActive && (
+                  <span
+                    className="absolute bottom-0 left-0 right-0"
+                    style={{ height: 2, background: 'var(--accent-blue, #3b82f6)', borderRadius: '1px 1px 0 0' }}
+                  />
+                )}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Description strip */}
+      <div
+        className="px-4 py-1.5"
+        style={{
+          borderBottom: '1px solid var(--border-subtle)',
+          background: 'var(--bg-subtle, var(--bg-card))',
+        }}
+      >
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {activeChart?.desc}
+        </p>
+      </div>
+
+      {/* Chart content */}
+      <div className="p-4 sm:p-5">
+        {activeId === 'categories' && (
+          <CategoryDonutChart transactions={transactions} />
+        )}
+        {activeId === 'monthly' && (
+          <MonthlySpendingBarChart transactions={transactions} creditCards={creditCards} />
+        )}
+        {activeId === 'merchants' && (
+          <TopMerchantsChart transactions={transactions} />
+        )}
+      </div>
+    </div>
+  )
+}
