@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function OneTimeExpensePanel({ expenses, onChange, people = [] }) {
+export default function OneTimeExpensePanel({ expenses, onChange, people = [], filterPersonId = null }) {
   // Note: one-time expenses support manual drag reorder (overrides date sort for display)
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(expenses, onChange)
 
@@ -58,7 +59,9 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
 
           {/* Expense rows */}
           <div className="space-y-2">
-            {expenses.map(expense => (
+            {expenses.map(expense => {
+              const dimmed = filterPersonId && !matchesPersonFilter(expense.assignedTo, filterPersonId)
+              return (
               <div
                 key={expense.id}
                 className={`row-onetimeexp-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
@@ -67,7 +70,7 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
                   overedId === expense.id && draggingId !== expense.id
                     ? 'ring-2 ring-orange-500/50 ring-inset'
                     : ''
-                }`}
+                } ${dimmed ? 'opacity-25' : ''}`}
                 {...getItemProps(expense.id)}
               >
                 {/* Subrow 1: drag · description */}
@@ -117,7 +120,7 @@ export default function OneTimeExpensePanel({ expenses, onChange, people = [] })
                   </button>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </>
       )}

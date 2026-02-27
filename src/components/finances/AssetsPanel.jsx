@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -22,7 +23,7 @@ function ExternalLinkIcon() {
   )
 }
 
-export default function AssetsPanel({ assets, onChange, people = [] }) {
+export default function AssetsPanel({ assets, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(assets, onChange)
 
   function updateAsset(id, field, val) {
@@ -83,7 +84,9 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
 
           {/* Asset rows */}
           <div className="space-y-2">
-            {assets.map(asset => (
+            {assets.map(asset => {
+              const dimmed = filterPersonId && !matchesPersonFilter(asset.assignedTo, filterPersonId)
+              return (
               <div
                 key={asset.id}
                 className={`row-assets-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
@@ -92,7 +95,7 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
                   overedId === asset.id && draggingId !== asset.id
                     ? 'ring-2 ring-violet-500/50 ring-inset'
                     : ''
-                }`}
+                } ${dimmed ? 'opacity-25' : ''}`}
                 {...getItemProps(asset.id)}
               >
                 {/* Subrow 1: drag · name */}
@@ -244,7 +247,7 @@ export default function AssetsPanel({ assets, onChange, people = [] }) {
                   </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         </>
       )}

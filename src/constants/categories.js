@@ -1,0 +1,16 @@
+export const STATEMENT_CATEGORIES = [
+  { key: 'dining',         label: 'Dining & Restaurants', color: '#f97316' },
+  { key: 'groceries',      label: 'Groceries',            color: '#22c55e' },
+  { key: 'gas',            label: 'Gas & Fuel',           color: '#eab308' },
+  { key: 'travel',         label: 'Travel & Hotels',      color: '#3b82f6' },
+  { key: 'entertainment',  label: 'Entertainment',        color: '#a855f7' },
+  { key: 'shopping',       label: 'Shopping',             color: '#ec4899' },
+  { key: 'subscriptions',  label: 'Subscriptions',        color: '#8b5cf6' },
+  { key: 'health',         label: 'Health & Medical',     color: '#06b6d4' },
+  { key: 'utilities',      label: 'Utilities & Bills',    color: '#14b8a6' },
+  { key: 'transportation', label: 'Transportation',       color: '#64748b' },
+  { key: 'education',      label: 'Education',            color: '#0ea5e9' },
+  { key: 'personalCare',   label: 'Personal Care',        color: '#f43e5e' },
+  { key: 'fees',           label: 'Fees & Interest',      color: '#ef4444' },
+  { key: 'other',          label: 'Other',                color: '#6b7280' },
+]

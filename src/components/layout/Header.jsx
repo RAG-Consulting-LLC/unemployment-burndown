@@ -1,29 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-function relTime(date) {
-  if (!date) return null
-  const sec = Math.floor((Date.now() - date) / 1000)
-  if (sec < 5)  return 'just now'
-  if (sec < 60) return `${sec}s ago`
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24)  return `${hr}h ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+const NAV_TABS = [
+  { path: '/',              label: 'Overview',      shortLabel: 'Overview' },
+  { path: '/job-scenarios', label: 'Job Scenarios', shortLabel: 'Jobs' },
+  { path: '/credit-cards',  label: 'Statements',    shortLabel: 'Cards' },
+]
 
-export default function Header({ rightSlot, lastSaved, savedBy }) {
+export default function Header({ rightSlot }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const activePath = location.pathname
   const [visible, setVisible] = useState(true)
   const lastScrollY = useRef(0)
   const ticking = useRef(false)
-
-  // Refresh relative-time display every 15s
-  const [, tick] = useState(0)
-  useEffect(() => {
-    if (!lastSaved) return
-    const id = setInterval(() => tick(n => n + 1), 15_000)
-    return () => clearInterval(id)
-  }, [lastSaved])
 
   useEffect(() => {
     function onScroll() {
@@ -47,36 +37,40 @@ export default function Header({ rightSlot, lastSaved, savedBy }) {
 
   return (
     <header
-      className={`sticky top-0 z-50 flex items-center justify-between py-3 px-3 sm:px-6
+      className={`sticky top-0 z-50 flex items-center justify-between px-2 sm:px-5
         backdrop-blur-xl backdrop-saturate-150
         transition-transform duration-300 ease-in-out
         ${visible ? 'translate-y-0' : '-translate-y-full'}`}
       style={{
         backgroundColor: 'var(--header-bg)',
         borderBottom: '1px solid var(--border-subtle)',
-        boxShadow: '0 1px 0 0 var(--shadow-header)',
+        height: 44,
       }}
     >
-      <div className="min-w-0 mr-2">
-        <h1 className="text-base sm:text-xl font-bold tracking-tight truncate" style={{ color: 'var(--text-primary)' }}>
-          Financial Burndown Tracker
-        </h1>
-        <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
-            Furlough started Feb 21, 2026
-          </p>
-          {lastSaved && (
-            <>
-              <span className="text-xs hidden sm:block" style={{ color: 'var(--border-default, #374151)' }}>·</span>
-              <p className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
-                Saved by <span style={{ color: 'var(--text-secondary)' }}>{savedBy || 'You'}</span>
-                {' '}&middot; {relTime(lastSaved)}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+      <nav className="flex items-center">
+        {NAV_TABS.map(tab => {
+          const isActive = activePath === tab.path
+          return (
+            <button
+              key={tab.path}
+              onClick={() => navigate(tab.path)}
+              className="relative h-[44px] px-3 text-[13px] font-medium transition-colors whitespace-nowrap"
+              style={{ color: isActive ? 'var(--accent-blue, #3b82f6)' : 'var(--text-muted)' }}
+            >
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              {isActive && (
+                <span
+                  className="absolute bottom-0 inset-x-3 h-0.5 rounded-full"
+                  style={{ background: 'var(--accent-blue, #3b82f6)' }}
+                />
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="flex items-center gap-1">
         {rightSlot}
       </div>
     </header>
