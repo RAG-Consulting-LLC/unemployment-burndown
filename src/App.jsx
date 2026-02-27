@@ -9,6 +9,7 @@ import { useAuth } from './hooks/useAuth'
 import LoginScreen from './components/auth/LoginScreen'
 import Header from './components/layout/Header'
 import TemplateManager from './components/templates/TemplateManager'
+import PersonFilter from './components/people/PersonFilter'
 import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
@@ -291,6 +292,7 @@ function AuthenticatedApp({ logout }) {
   const [jobScenarios, setJobScenarios] = useState(DEFAULTS.jobScenarios)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
+  const [filterPersonId, setFilterPersonId] = useState(null)
 
   const {
     templates,
@@ -667,6 +669,11 @@ function AuthenticatedApp({ logout }) {
         <Route path="/" element={
           <>
             <TableOfContents visibleSections={viewSettings.sections} />
+            {people.length > 0 && (
+              <div className="max-w-5xl mx-auto px-4 pt-4">
+                <PersonFilter people={people} value={filterPersonId} onChange={setFilterPersonId} />
+              </div>
+            )}
             <FinancialSidebar
               totalSavings={totalSavings}
               assetProceeds={assetProceeds}
@@ -686,6 +693,7 @@ function AuthenticatedApp({ logout }) {
               monthlyIncome={monthlyIncome}
               unemployment={unemployment}
               people={people}
+              filterPersonId={filterPersonId}
             />
             <BurndownPage
               current={current}
@@ -730,6 +738,8 @@ function AuthenticatedApp({ logout }) {
               templateResults={templateResults}
               jobScenarioResults={jobScenarioResults}
               plaid={plaid}
+              filterPersonId={filterPersonId}
+              onFilterPersonChange={setFilterPersonId}
             />
           </>
         } />

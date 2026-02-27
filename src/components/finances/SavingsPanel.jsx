@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function SavingsPanel({ accounts, onChange, people = [] }) {
+export default function SavingsPanel({ accounts, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(accounts, onChange)
 
   function updateAccount(id, field, val) {
@@ -56,6 +57,7 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
       <div className="space-y-2">
         {accounts.map(account => {
           const isActive = account.active !== false
+          const dimmed = filterPersonId && !matchesPersonFilter(account.assignedTo, filterPersonId)
           return (
             <div
               key={account.id}
@@ -65,7 +67,7 @@ export default function SavingsPanel({ accounts, onChange, people = [] }) {
                 overedId === account.id && draggingId !== account.id
                   ? 'ring-2 ring-blue-500/50 ring-inset'
                   : ''
-              } ${!isActive ? 'opacity-50' : ''}`}
+              } ${!isActive ? 'opacity-50' : ''} ${dimmed ? 'opacity-25' : ''}`}
               {...getItemProps(account.id)}
             >
               {/* Subrow 1: drag · toggle · name */}

@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function ExpensePanel({ expenses, onChange, people = [] }) {
+export default function ExpensePanel({ expenses, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(expenses, onChange)
 
   function updateExpense(id, field, val) {
@@ -46,7 +47,9 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
 
       {/* Expense rows */}
       <div className="space-y-2">
-        {expenses.map(expense => (
+        {expenses.map(expense => {
+          const dimmed = filterPersonId && !matchesPersonFilter(expense.assignedTo, filterPersonId)
+          return (
           <div
             key={expense.id}
             className={`row-expense-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
@@ -55,7 +58,7 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
               overedId === expense.id && draggingId !== expense.id
                 ? 'ring-2 ring-blue-500/50 ring-inset'
                 : ''
-            }`}
+            } ${dimmed ? 'opacity-25' : ''}`}
             {...getItemProps(expense.id)}
           >
             {/* Subrow 1: drag · category name */}
@@ -111,7 +114,8 @@ export default function ExpensePanel({ expenses, onChange, people = [] }) {
               </button>
             </div>
           </div>
-        ))}
+        )})}
+
       </div>
 
       {/* Add row */}

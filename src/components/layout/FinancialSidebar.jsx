@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { matchesPersonFilter } from '../../utils/personFilter'
 
 const COLOR_HEX = {
   blue:    '#3b82f6',
@@ -84,13 +85,32 @@ function Section({ label, total, sign, color, items = [], defaultOpen = false })
   )
 }
 
+function FilterBadge({ people, filterPersonId }) {
+  if (!filterPersonId) return null
+  if (filterPersonId === 'unassigned') {
+    return (
+      <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-dashed ml-1" style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)' }}>
+        Unassigned
+      </span>
+    )
+  }
+  const person = people.find(p => p.id === filterPersonId)
+  if (!person) return null
+  const hex = COLOR_HEX[person.color] ?? '#6b7280'
+  return (
+    <span className="text-[9px] px-1.5 py-0.5 rounded-full ml-1 font-semibold" style={{ background: `color-mix(in srgb, ${hex} 20%, transparent)`, color: hex }}>
+      {person.name}
+    </span>
+  )
+}
+
 function MobileFinancialDrawer({
   runwayLabel, runwayColor, burnColor, currentNetBurn, fmt,
   totalSavings, assetProceeds, monthlyBenefits, monthlyInvestments,
   totalMonthlyIncome, upcomingOneTimeIncome, totalExpensesOnly, totalSubsCost,
   totalCCPayments, upcomingOneTimeExpenses, activeAccounts, activeSubscriptions,
   activeCCPayments, activeInvestments, expenses, monthlyIncome, unemployment,
-  oneTimeExpenses, oneTimeIncome, people = [],
+  oneTimeExpenses, oneTimeIncome, people = [], filterPersonId = null,
 }) {
   const [open, setOpen] = useState(false)
 
@@ -145,8 +165,9 @@ function MobileFinancialDrawer({
           {/* Drag handle */}
           <div className="absolute left-1/2 -translate-x-1/2 top-2 w-8 h-1 rounded-full" style={{ background: 'var(--border-default)' }} />
 
-          <span className="text-xs font-semibold uppercase tracking-widest flex-1 min-w-0" style={{ color: 'var(--text-muted)' }}>
+          <span className="flex items-center text-xs font-semibold uppercase tracking-widest flex-1 min-w-0" style={{ color: 'var(--text-muted)' }}>
             Finances
+            <FilterBadge people={people} filterPersonId={filterPersonId} />
           </span>
 
           <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -264,35 +285,78 @@ export default function FinancialSidebar({
   monthlyIncome = [],
   unemployment = {},
   people = [],
+  filterPersonId = null,
 }) {
-  const runwayLabel = totalRunwayMonths != null
-    ? totalRunwayMonths >= 120
-      ? '10+ yrs'
-      : totalRunwayMonths >= 24
-        ? `${(totalRunwayMonths / 12).toFixed(1)} yrs`
-        : `${Math.round(totalRunwayMonths)} mo`
-    : '—'
+  // Apply person filter to all data arrays
+  const pf = filterPersonId
+  const fp = (item) => matchesPersonFilter(item.assignedTo, pf)
 
-  const runwayColor = totalRunwayMonths == null
+  const filteredAccounts = pf ? savingsAccounts.filter(fp) : savingsAccounts
+  const filteredExpenses = pf ? expenses.filter(fp) : expenses
+  const filteredSubscriptions = pf ? subscriptions.filter(fp) : subscriptions
+  const filteredCreditCards = pf ? creditCards.filter(fp) : creditCards
+  const filteredInvestments = pf ? investments.filter(fp) : investments
+  const filteredOneTimeExpenses = pf ? oneTimeExpenses.filter(fp) : oneTimeExpenses
+  const filteredOneTimeIncome = pf ? oneTimeIncome.filter(fp) : oneTimeIncome
+  const filteredMonthlyIncome = pf ? monthlyIncome.filter(fp) : monthlyIncome
+
+  // Show UI benefits only if unemployment is assigned to the filtered person (or no filter / unassigned)
+  const showBenefits = !pf || matchesPersonFilter(unemployment.assignedTo, pf)
+
+  const activeAccounts = filteredAccounts.filter(a => a.active !== false)
+  const activeSubscriptions = filteredSubscriptions.filter(s => s.active !== false)
+  const activeCCPayments = filteredCreditCards.filter(c => (Number(c.minimumPayment) || 0) > 0)
+  const activeInvestments = filteredInvestments.filter(inv => inv.active !== false && (Number(inv.monthlyAmount) || 0) > 0)
+
+  const fTotalSavings = activeAccounts.reduce((s, a) => s + (Number(a.amount) || 0), 0)
+  const totalSubsCost = activeSubscriptions.reduce((s, x) => s + (Number(x.monthlyAmount) || 0), 0)
+  const totalCCPayments = activeCCPayments.reduce((s, c) => s + (Number(c.minimumPayment) || 0), 0)
+  const totalExpensesOnly = filteredExpenses.reduce((s, e) => s + (Number(e.monthlyAmount) || 0), 0)
+  const totalMonthlyIncome = filteredMonthlyIncome.reduce((s, x) => s + (Number(x.monthlyAmount) || 0), 0)
+  const fMonthlyInvestments = activeInvestments.reduce((s, inv) => s + (Number(inv.monthlyAmount) || 0), 0)
+  const upcomingOneTimeExpenses = filteredOneTimeExpenses.filter(e => e.date && e.amount)
+  const upcomingOneTimeIncome = filteredOneTimeIncome.filter(e => e.date && e.amount)
+
+  const fMonthlyBenefits = showBenefits ? monthlyBenefits : 0
+
+  // Filtered net burn
+  const fTotalExpenses = totalExpensesOnly + totalSubsCost + totalCCPayments + fMonthlyInvestments
+  const fTotalIncome = fMonthlyBenefits + totalMonthlyIncome
+  const fNetBurn = pf ? (fTotalExpenses - fTotalIncome) : currentNetBurn
+
+  // Use unfiltered values when no filter is active
+  const displaySavings = pf ? fTotalSavings : totalSavings
+  const displayBenefits = pf ? fMonthlyBenefits : monthlyBenefits
+  const displayInvestments = pf ? fMonthlyInvestments : monthlyInvestments
+  const displayNetBurn = fNetBurn
+
+  const runwayLabel = pf
+    ? (displayNetBurn <= 0
+      ? '10+ yrs'
+      : displaySavings > 0
+        ? (() => { const m = displaySavings / displayNetBurn; return m >= 120 ? '10+ yrs' : m >= 24 ? `${(m / 12).toFixed(1)} yrs` : `${Math.round(m)} mo` })()
+        : '0 mo')
+    : totalRunwayMonths != null
+      ? totalRunwayMonths >= 120
+        ? '10+ yrs'
+        : totalRunwayMonths >= 24
+          ? `${(totalRunwayMonths / 12).toFixed(1)} yrs`
+          : `${Math.round(totalRunwayMonths)} mo`
+      : '—'
+
+  const runwayMonths = pf
+    ? (displayNetBurn <= 0 ? 120 : displaySavings > 0 ? displaySavings / displayNetBurn : 0)
+    : totalRunwayMonths
+
+  const runwayColor = runwayMonths == null
     ? 'var(--text-muted)'
-    : totalRunwayMonths >= 18
+    : runwayMonths >= 18
       ? 'var(--accent-emerald)'
-      : totalRunwayMonths >= 9
+      : runwayMonths >= 9
         ? 'var(--accent-amber)'
         : 'var(--accent-red)'
 
-  const burnColor = currentNetBurn > 0 ? 'var(--accent-red)' : 'var(--accent-emerald)'
-
-  const activeAccounts = savingsAccounts.filter(a => a.active !== false)
-  const activeSubscriptions = subscriptions.filter(s => s.active !== false)
-  const activeCCPayments = creditCards.filter(c => (Number(c.minimumPayment) || 0) > 0)
-  const activeInvestments = investments.filter(inv => inv.active !== false && (Number(inv.monthlyAmount) || 0) > 0)
-  const totalSubsCost = activeSubscriptions.reduce((s, x) => s + (Number(x.monthlyAmount) || 0), 0)
-  const totalCCPayments = activeCCPayments.reduce((s, c) => s + (Number(c.minimumPayment) || 0), 0)
-  const totalExpensesOnly = expenses.reduce((s, e) => s + (Number(e.monthlyAmount) || 0), 0)
-  const totalMonthlyIncome = monthlyIncome.reduce((s, x) => s + (Number(x.monthlyAmount) || 0), 0)
-  const upcomingOneTimeExpenses = oneTimeExpenses.filter(e => e.date && e.amount)
-  const upcomingOneTimeIncome = oneTimeIncome.filter(e => e.date && e.amount)
+  const burnColor = displayNetBurn > 0 ? 'var(--accent-red)' : 'var(--accent-emerald)'
 
   return (
     <>
@@ -300,12 +364,12 @@ export default function FinancialSidebar({
       runwayLabel={runwayLabel}
       runwayColor={runwayColor}
       burnColor={burnColor}
-      currentNetBurn={currentNetBurn}
+      currentNetBurn={displayNetBurn}
       fmt={fmt}
-      totalSavings={totalSavings}
-      assetProceeds={assetProceeds}
-      monthlyBenefits={monthlyBenefits}
-      monthlyInvestments={monthlyInvestments}
+      totalSavings={displaySavings}
+      assetProceeds={pf ? 0 : assetProceeds}
+      monthlyBenefits={displayBenefits}
+      monthlyInvestments={displayInvestments}
       totalMonthlyIncome={totalMonthlyIncome}
       upcomingOneTimeIncome={upcomingOneTimeIncome}
       totalExpensesOnly={totalExpensesOnly}
@@ -316,12 +380,13 @@ export default function FinancialSidebar({
       activeSubscriptions={activeSubscriptions}
       activeCCPayments={activeCCPayments}
       activeInvestments={activeInvestments}
-      expenses={expenses}
-      monthlyIncome={monthlyIncome}
+      expenses={filteredExpenses}
+      monthlyIncome={filteredMonthlyIncome}
       unemployment={unemployment}
-      oneTimeExpenses={oneTimeExpenses}
-      oneTimeIncome={oneTimeIncome}
+      oneTimeExpenses={filteredOneTimeExpenses}
+      oneTimeIncome={filteredOneTimeIncome}
       people={people}
+      filterPersonId={filterPersonId}
     />
     <aside
       className="hidden xl:flex flex-col fixed z-40"
@@ -333,8 +398,9 @@ export default function FinancialSidebar({
       }}
       aria-label="Financial summary"
     >
-      <p className="text-xs font-semibold uppercase tracking-widest mb-2 px-2 shrink-0" style={{ color: 'var(--text-muted)' }}>
+      <p className="flex items-center text-xs font-semibold uppercase tracking-widest mb-2 px-2 shrink-0" style={{ color: 'var(--text-muted)' }}>
         Finances
+        <FilterBadge people={people} filterPersonId={filterPersonId} />
       </p>
 
       {/* Scrollable sections */}
@@ -343,7 +409,7 @@ export default function FinancialSidebar({
         {/* Cash */}
         <Section
           label="Cash"
-          total={totalSavings}
+          total={displaySavings}
           sign=""
           color="var(--accent-blue)"
           defaultOpen={false}
@@ -351,7 +417,7 @@ export default function FinancialSidebar({
         />
 
         {/* Asset Proceeds */}
-        {assetProceeds > 0 && (
+        {!pf && assetProceeds > 0 && (
           <Section
             label="Assets (if sold)"
             total={assetProceeds}
@@ -366,14 +432,14 @@ export default function FinancialSidebar({
         <p className="text-xs px-2 mb-0.5" style={{ color: 'var(--text-muted)', opacity: 0.5, fontSize: '0.6rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Income /mo</p>
 
         {/* UI Benefits */}
-        {monthlyBenefits > 0 && (
+        {displayBenefits > 0 && (
           <Section
             label="UI Benefits"
-            total={monthlyBenefits}
+            total={displayBenefits}
             sign="+"
             color="var(--accent-emerald)"
             items={[
-              { label: `${unemployment.weeklyAmount ? '$' + unemployment.weeklyAmount + '/wk' : ''}`, amount: monthlyBenefits },
+              { label: `${unemployment.weeklyAmount ? '$' + unemployment.weeklyAmount + '/wk' : ''}`, amount: displayBenefits },
             ].filter(i => i.label)}
           />
         )}
@@ -385,7 +451,7 @@ export default function FinancialSidebar({
             total={totalMonthlyIncome}
             sign="+"
             color="var(--accent-emerald)"
-            items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0, personColor: getPersonColor(people, x.assignedTo) }))}
+            items={filteredMonthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0, personColor: getPersonColor(people, x.assignedTo) }))}
           />
         )}
 
@@ -411,7 +477,7 @@ export default function FinancialSidebar({
             total={totalExpensesOnly}
             sign="-"
             color="var(--accent-red)"
-            items={expenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0, personColor: getPersonColor(people, e.assignedTo) }))}
+            items={filteredExpenses.filter(e => e.monthlyAmount).map(e => ({ label: e.category || 'Expense', amount: Number(e.monthlyAmount) || 0, personColor: getPersonColor(people, e.assignedTo) }))}
           />
         )}
 
@@ -438,10 +504,10 @@ export default function FinancialSidebar({
         )}
 
         {/* Investments */}
-        {monthlyInvestments > 0 && (
+        {displayInvestments > 0 && (
           <Section
             label="Investments"
-            total={monthlyInvestments}
+            total={displayInvestments}
             sign="-"
             color="var(--accent-amber)"
             items={activeInvestments.map(inv => ({ label: inv.name || inv.type || 'Investment', amount: Number(inv.monthlyAmount) || 0, personColor: getPersonColor(people, inv.assignedTo) }))}
@@ -465,7 +531,7 @@ export default function FinancialSidebar({
         <div className="flex items-center justify-between px-2 py-0.5">
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Net Burn</span>
           <span className="text-xs font-semibold tabular-nums" style={{ color: burnColor }}>
-            {currentNetBurn > 0 ? '-' : '+'}{fmt(currentNetBurn)}/mo
+            {displayNetBurn > 0 ? '-' : '+'}{fmt(displayNetBurn)}/mo
           </span>
         </div>
         <div className="flex items-center justify-between px-2 py-0.5">
