@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TrendingDown, Flame, ArrowLeftRight, PieChart, BarChart2, BarChart3 } from 'lucide-react'
 import BurndownChart from './BurndownChart'
 import BurnRateChart from './BurnRateChart'
 import IncomeVsExpensesChart from './IncomeVsExpensesChart'
@@ -10,65 +11,41 @@ import IncomeCompositionChart from './IncomeCompositionChart'
 const CHART_DEFS = [
   {
     id:   'burndown',
-    icon: '📉',
+    Icon: TrendingDown,
     label: 'Balance',
     desc:  'Savings balance over time — the core runway burndown view',
   },
   {
     id:   'burnrate',
-    icon: '🔥',
+    Icon: Flame,
     label: 'Burn Rate',
     desc:  'Monthly net cash change — red when drawing down, green when income exceeds expenses',
   },
   {
     id:   'cashflow',
-    icon: '💸',
+    Icon: ArrowLeftRight,
     label: 'Cash Flow',
     desc:  'Side-by-side income vs. outflow bars — see which months are covered',
   },
   {
     id:   'expensemix',
-    icon: '🥧',
+    Icon: PieChart,
     label: 'Expense Mix',
     desc:  'Donut breakdown of spending: essential, discretionary, subscriptions & more',
   },
   {
     id:   'topspend',
-    icon: '📊',
+    Icon: BarChart2,
     label: 'Top Costs',
     desc:  'All expense line-items ranked by monthly cost — spot your biggest drains',
   },
   {
     id:   'incomemix',
-    icon: '📈',
+    Icon: BarChart3,
     label: 'Income Mix',
     desc:  'Stacked income sources over time with outflow overlay',
   },
 ]
-
-const STORAGE_KEY = 'runwayPinnedChartId'
-
-// ─── Pin icon ─────────────────────────────────────────────────────────────────
-function PinIcon({ size = 11 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-    >
-      {/* Simple thumbtack shape */}
-      <line x1="12" y1="17" x2="12" y2="22" />
-      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-    </svg>
-  )
-}
-
-function PinIconFilled({ size = 11 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none">
-      <line x1="12" y1="17" x2="12" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
-    </svg>
-  )
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ChartTabsSection({
@@ -89,28 +66,8 @@ export default function ChartTabsSection({
   // Derived income
   monthlyBenefits,
 }) {
-  // Pinned chart (default shown first, persisted in localStorage)
-  const [pinnedId, setPinnedId] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) || 'burndown' } catch { return 'burndown' }
-  })
-
-  const [activeId, setActiveId] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) || 'burndown' } catch { return 'burndown' }
-  })
-
+  const [activeId, setActiveId] = useState('burndown')
   const [hoveredId, setHoveredId] = useState(null)
-
-  // Pinned tab always first, rest in original order
-  const orderedDefs = [
-    CHART_DEFS.find(c => c.id === pinnedId),
-    ...CHART_DEFS.filter(c => c.id !== pinnedId),
-  ].filter(Boolean)
-
-  function handlePin(id, e) {
-    e.stopPropagation()
-    setPinnedId(id)
-    try { localStorage.setItem(STORAGE_KEY, id) } catch {}
-  }
 
   const activeChart = CHART_DEFS.find(c => c.id === activeId)
 
@@ -129,11 +86,9 @@ export default function ChartTabsSection({
           scrollbarWidth: 'none',
         }}
       >
-        {orderedDefs.map((chart, idx) => {
+        {CHART_DEFS.map((chart, idx) => {
           const isActive  = chart.id === activeId
-          const isPinned  = chart.id === pinnedId
           const isHovered = chart.id === hoveredId
-          const showPinBtn = (isHovered || isActive) && !isPinned
 
           return (
             <div key={chart.id} className="relative flex items-stretch flex-shrink-0">
@@ -164,17 +119,7 @@ export default function ChartTabsSection({
                 }}
                 title={chart.desc}
               >
-                {/* Pinned indicator (first tab only) */}
-                {isPinned && idx === 0 && (
-                  <span
-                    style={{ color: 'var(--accent-amber, #f59e0b)', opacity: 0.85 }}
-                    title="Default chart — will open here each time"
-                  >
-                    <PinIconFilled size={10} />
-                  </span>
-                )}
-
-                <span className="text-base leading-none">{chart.icon}</span>
+                <chart.Icon size={15} strokeWidth={1.75} />
                 <span className="hidden sm:inline whitespace-nowrap">{chart.label}</span>
 
                 {/* Active underline */}
@@ -185,24 +130,6 @@ export default function ChartTabsSection({
                   />
                 )}
               </button>
-
-              {/* Pin-as-default button — floats on the right side of an active/hovered non-pinned tab */}
-              {showPinBtn && (
-                <button
-                  onMouseEnter={() => setHoveredId(chart.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onClick={(e) => handlePin(chart.id, e)}
-                  className="flex items-center px-1.5 transition-opacity"
-                  style={{
-                    color: 'var(--text-muted)',
-                    opacity: isHovered || isActive ? 0.55 : 0,
-                    background: isActive ? 'var(--bg-card)' : 'transparent',
-                  }}
-                  title="Set as default chart"
-                >
-                  <PinIcon size={10} />
-                </button>
-              )}
             </div>
           )
         })}
@@ -210,7 +137,7 @@ export default function ChartTabsSection({
 
       {/* ── Description strip ── */}
       <div
-        className="flex items-center justify-between px-4 py-1.5"
+        className="px-4 py-1.5"
         style={{
           borderBottom: '1px solid var(--border-subtle)',
           background: 'var(--bg-subtle, var(--bg-card))',
@@ -219,27 +146,6 @@ export default function ChartTabsSection({
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {activeChart?.desc}
         </p>
-        {pinnedId !== activeId && (
-          <button
-            onClick={(e) => handlePin(activeId, e)}
-            className="text-xs flex items-center gap-1 ml-3 flex-shrink-0 transition-colors"
-            style={{ color: 'var(--text-muted)' }}
-            title="Pin this chart as your default"
-          >
-            <PinIcon size={10} />
-            <span className="hidden sm:inline">Set default</span>
-          </button>
-        )}
-        {pinnedId === activeId && activeId !== 'burndown' && (
-          <button
-            onClick={(e) => handlePin('burndown', e)}
-            className="text-xs flex items-center gap-1 ml-3 flex-shrink-0 transition-colors"
-            style={{ color: 'var(--text-muted)', opacity: 0.55 }}
-            title="Reset default to Balance chart"
-          >
-            Reset default
-          </button>
-        )}
       </div>
 
       {/* ── Chart content ── */}
