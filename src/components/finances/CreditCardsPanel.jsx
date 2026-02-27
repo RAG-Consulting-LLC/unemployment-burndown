@@ -79,7 +79,28 @@ function UtilBadge({ balance, limit }) {
   )
 }
 
-export default function CreditCardsPanel({ cards, onChange, people = [] }) {
+function BankIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-blue)' }}>
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
+    </svg>
+  )
+}
+
+function getPlaidMapping(plaidAccounts, localType, localId) {
+  if (!plaidAccounts) return null
+  for (const inst of plaidAccounts) {
+    for (const acc of inst.accounts) {
+      if (acc.mappedTo?.type === localType && acc.mappedTo?.localId === localId) {
+        return { institution: inst.institutionName, autoSync: acc.autoSync, mask: acc.mask }
+      }
+    }
+  }
+  return null
+}
+
+export default function CreditCardsPanel({ cards, onChange, people = [], plaidAccounts = [] }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(cards, onChange)
 
   function updateCard(id, field, val) {
@@ -169,24 +190,38 @@ export default function CreditCardsPanel({ cards, onChange, people = [] }) {
                 {/* Mobile subrow 2 / Desktop inline: balance + min pmt + assignee + trash */}
                 <div className="flex items-center gap-2 sm:contents">
                   {/* Balance owed */}
-                  <div
-                    className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
-                    style={{
-                      background: 'var(--bg-page)',
-                      border: '1px solid var(--border-input)',
-                      minWidth: '80px',
-                    }}
-                  >
-                    <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
-                    <CurrencyInput
-                      value={card.balance}
-                      onChange={val => updateCard(card.id, 'balance', val)}
-                      className="bg-transparent text-sm w-full outline-none"
-                      style={{ color: 'var(--text-primary)' }}
-                      min="0"
-                      placeholder="Balance"
-                    />
-                  </div>
+                  {(() => {
+                    const linked = getPlaidMapping(plaidAccounts, 'creditCards', card.id)
+                    return (
+                      <div
+                        className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
+                        style={{
+                          background: 'var(--bg-page)',
+                          border: '1px solid var(--border-input)',
+                          minWidth: '80px',
+                        }}
+                      >
+                        {linked && (
+                          <span className="mr-1 flex-shrink-0" title={`Linked to ${linked.institution}${linked.mask ? ` ****${linked.mask}` : ''}${linked.autoSync ? ' (auto-sync)' : ''}`}>
+                            <BankIcon />
+                          </span>
+                        )}
+                        <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
+                        {linked?.autoSync ? (
+                          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(card.balance).replace('$', '')}</span>
+                        ) : (
+                          <CurrencyInput
+                            value={card.balance}
+                            onChange={val => updateCard(card.id, 'balance', val)}
+                            className="bg-transparent text-sm w-full outline-none"
+                            style={{ color: 'var(--text-primary)' }}
+                            min="0"
+                            placeholder="Balance"
+                          />
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Min payment */}
                   <div

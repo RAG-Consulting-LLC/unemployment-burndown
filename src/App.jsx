@@ -20,6 +20,9 @@ import AssetsPanel from './components/finances/AssetsPanel'
 import InvestmentsPanel from './components/finances/InvestmentsPanel'
 import SubscriptionsPanel from './components/finances/SubscriptionsPanel'
 import CreditCardsPanel from './components/finances/CreditCardsPanel'
+import PlaidAccountsPanel from './components/plaid/PlaidAccountsPanel'
+import TransactionsPanel from './components/plaid/TransactionsPanel'
+import { usePlaid } from './hooks/usePlaid'
 import WhatIfPanel from './components/scenarios/WhatIfPanel'
 import TemplateManager from './components/templates/TemplateManager'
 import PeopleManager from './components/people/PeopleManager'
@@ -155,6 +158,8 @@ const DEFAULT_VIEW = {
   sections: {
     household:     true,
     whatif:        true,
+    plaidAccounts: true,
+    transactions:  true,
     subscriptions: true,
     creditCards:   true,
     investments:   true,
@@ -190,6 +195,9 @@ function AuthenticatedApp({ logout }) {
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
+  const [plaidAccounts, setPlaidAccounts] = useState(DEFAULTS.plaidAccounts)
+  const [plaidTransactions, setPlaidTransactions] = useState(DEFAULTS.plaidTransactions)
+  const [plaidSyncCursor, setPlaidSyncCursor] = useState(DEFAULTS.plaidSyncCursor)
 
   const {
     templates,
@@ -211,7 +219,7 @@ function AuthenticatedApp({ logout }) {
   const s3Storage = useS3Storage()
 
   function buildSnapshot() {
-    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, plaidAccounts, plaidTransactions, plaidSyncCursor }
   }
 
   function applySnapshot(snapshot) {
@@ -230,6 +238,9 @@ function AuthenticatedApp({ logout }) {
     if (snapshot.investments) setInvestments(snapshot.investments)
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
     if (snapshot.creditCards) setCreditCards(snapshot.creditCards)
+    if (snapshot.plaidAccounts) setPlaidAccounts(snapshot.plaidAccounts)
+    if (snapshot.plaidTransactions) setPlaidTransactions(snapshot.plaidTransactions)
+    if (snapshot.plaidSyncCursor) setPlaidSyncCursor(snapshot.plaidSyncCursor)
   }
 
   // Full state = live snapshot + saved templates (written to / read from file)
@@ -278,7 +289,7 @@ function AuthenticatedApp({ logout }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates, comments, defaultPersonId, plaidAccounts, plaidTransactions, plaidSyncCursor]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -347,6 +358,23 @@ function AuthenticatedApp({ logout }) {
   const onInvestmentsChange  = track(() => investments,     setInvestments,     'Investments',        summarizeInvestments,  diffArray)
   const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
   const onCreditCardsChange  = track(() => creditCards,     setCreditCards,     'Credit cards',       summarizeCCs,          diffArray)
+  const onPlaidAccountsChange     = track(() => plaidAccounts,     setPlaidAccounts,     'Linked accounts', (v) => `${v.length} institution${v.length !== 1 ? 's' : ''}`, diffArray)
+  const onPlaidTransactionsChange = track(() => plaidTransactions, setPlaidTransactions, 'Transactions',    (v) => `${v.length} txn${v.length !== 1 ? 's' : ''}`,         diffArray)
+  const onPlaidSyncCursorChange   = (v) => { setPlaidSyncCursor(v); dirtySections.current.add('Plaid sync') }
+
+  // Plaid hook
+  const plaid = usePlaid({
+    plaidAccounts,
+    onPlaidAccountsChange,
+    plaidTransactions,
+    onPlaidTransactionsChange,
+    plaidSyncCursor,
+    onPlaidSyncCursorChange,
+    savingsAccounts,
+    onSavingsChange,
+    creditCards,
+    onCreditCardsChange: onCreditCardsChange,
+  })
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -598,8 +626,32 @@ function AuthenticatedApp({ logout }) {
           {/* Left column */}
           <div className="space-y-5">
             <SectionCard id="sec-savings" title="Cash & Savings Accounts" className="scroll-mt-20">
-              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} />
+              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} plaidAccounts={plaidAccounts} />
             </SectionCard>
+
+            {viewSettings.sections.plaidAccounts && (
+              <SectionCard id="sec-plaid" title="Linked Bank Accounts" className="scroll-mt-20">
+                <PlaidAccountsPanel
+                  plaidAccounts={plaidAccounts}
+                  linkToken={plaid.linkToken}
+                  linking={plaid.linking}
+                  syncing={plaid.syncing}
+                  fetchingTxns={plaid.fetchingTxns}
+                  error={plaid.error}
+                  onCreateLinkToken={plaid.createLinkToken}
+                  onLinkSuccess={plaid.onLinkSuccess}
+                  onSyncBalances={plaid.syncBalances}
+                  onSyncAll={plaid.syncAllBalances}
+                  onFetchTransactions={plaid.fetchTransactions}
+                  onUnlink={plaid.unlinkInstitution}
+                  onMapAccount={plaid.mapAccount}
+                  onToggleAutoSync={plaid.toggleAutoSync}
+                  savingsAccounts={savingsAccounts}
+                  creditCards={creditCards}
+                  investments={investments}
+                />
+              </SectionCard>
+            )}
 
             <SectionCard id="sec-unemployment" title="Unemployment Benefits" className="scroll-mt-20">
               <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} />
@@ -681,7 +733,7 @@ function AuthenticatedApp({ logout }) {
         {/* Credit cards / outstanding debt — full width */}
         {viewSettings.sections.creditCards && (
           <SectionCard id="sec-creditcards" title="Credit Cards / Outstanding Debt" className="scroll-mt-20">
-            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} />
+            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} plaidAccounts={plaidAccounts} />
           </SectionCard>
         )}
 
@@ -715,6 +767,18 @@ function AuthenticatedApp({ logout }) {
         {viewSettings.sections.monthlyIncome && (
           <SectionCard id="sec-monthlyincome" title="Monthly Income" className="scroll-mt-20">
             <MonthlyIncomePanel items={monthlyIncome} onChange={onMonthlyIncChange} people={people} />
+          </SectionCard>
+        )}
+
+        {/* Transactions from Plaid — full width */}
+        {viewSettings.sections.transactions && (
+          <SectionCard id="sec-transactions" title="Bank Transactions" className="scroll-mt-20">
+            <TransactionsPanel
+              transactions={plaidTransactions}
+              onChange={onPlaidTransactionsChange}
+              expenses={expenses}
+              plaidAccounts={plaidAccounts}
+            />
           </SectionCard>
         )}
 

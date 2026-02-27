@@ -48,4 +48,7 @@ export const DEFAULTS = {
     { id: 103, name: 'Internet', monthlyAmount: 60,  active: true, assignedTo: null },
   ],
   creditCards: [],
+  plaidAccounts: [],
+  plaidTransactions: [],
+  plaidSyncCursor: {},
 }
