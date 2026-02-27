@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Plaid integration backend for Financial Burndown Tracker
+
+Parameters:
+  PlaidClientId:
+    Type: String
+    Description: Plaid API client ID
+    NoEcho: true
+  PlaidSecret:
+    Type: String
+    Description: Plaid API secret key
+    NoEcho: true
+  PlaidEnv:
+    Type: String
+    Description: Plaid environment (sandbox, development, production)
+    Default: sandbox
+    AllowedValues:
+      - sandbox
+      - development
+      - production
+  AllowedOrigin:
+    Type: String
+    Description: CORS allowed origin (your Amplify domain or * for dev)
+    Default: '*'
+  S3Bucket:
+    Type: String
+    Description: S3 bucket storing data.json
+    Default: rag-consulting-burndown
+  S3Region:
+    Type: String
+    Description: S3 bucket region
+    Default: us-west-1
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        PLAID_CLIENT_ID: !Ref PlaidClientId
+        PLAID_SECRET: !Ref PlaidSecret
+        PLAID_ENV: !Ref PlaidEnv
+        TOKENS_TABLE: !Ref PlaidTokensTable
+        S3_BUCKET: !Ref S3Bucket
+        S3_REGION: !Ref S3Region
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization'"
+      AllowOrigin: "'*'"
+
+Resources:
+  # ---------- DynamoDB ----------
+  PlaidTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: PlaidTokens
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: itemId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: itemId
+          KeyType: RANGE
+
+  # ---------- Lambda Functions ----------
+  PlaidLinkTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/linkToken.handler
+      CodeUri: .
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/link-token
+            Method: post
+
+  PlaidExchangeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/exchange.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/exchange
+            Method: post
+
+  PlaidSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/sync.handler
+      CodeUri: .
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
+        - S3CrudPolicy:
+            BucketName: !Ref S3Bucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/sync
+            Method: post
+
+  PlaidAccountsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/accounts.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/accounts
+            Method: get
+
+  PlaidDisconnectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/disconnect.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/disconnect
+            Method: post
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  PlaidTokensTableName:
+    Description: DynamoDB table for Plaid tokens
+    Value: !Ref PlaidTokensTable

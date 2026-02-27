@@ -58,49 +58,26 @@ export default function CloudSaveStatus({ storage }) {
     return () => clearInterval(id)
   }, [status])
 
-  if (status === 'loading') {
-    return (
-      <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
-        style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-input)', color: 'var(--text-muted)' }}>
-        <SpinnerIcon />
-        <span className="hidden sm:inline">Loading…</span>
-      </span>
-    )
-  }
+  const iconColor = status === 'error' ? '#f87171'
+    : (status === 'saving' || status === 'connected') ? '#34d399'
+    : 'var(--text-muted)'
 
-  if (status === 'saving') {
-    return (
-      <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
-        style={{ borderColor: 'rgba(52,211,153,0.4)', background: 'rgba(52,211,153,0.08)', color: '#34d399' }}>
-        <SpinnerIcon />
-        <span className="hidden sm:inline">Saving…</span>
-      </span>
-    )
-  }
+  const title = status === 'loading' ? 'Loading…'
+    : status === 'saving' ? 'Saving…'
+    : status === 'error' ? (errorMsg || 'Cloud save failed')
+    : lastSaved ? `Saved ${relativeTime(lastSaved)}` : 'Connected to cloud'
 
-  if (status === 'error') {
-    return (
-      <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
-        title={errorMsg || 'Cloud save failed'}
-        style={{ borderColor: 'rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
-        <WarnIcon />
-        <span className="hidden sm:inline">Cloud error</span>
-      </span>
-    )
-  }
+  const icon = status === 'loading' || status === 'saving' ? <SpinnerIcon />
+    : status === 'error' ? <WarnIcon />
+    : lastSaved ? <CheckIcon /> : <CloudIcon />
 
-  // connected
   return (
-    <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
-      title="Auto-saving to cloud"
-      style={{ borderColor: 'rgba(52,211,153,0.4)', background: 'rgba(52,211,153,0.08)', color: '#34d399' }}>
-      {lastSaved ? <CheckIcon /> : <CloudIcon />}
-      <span className="hidden sm:inline">
-        {lastSaved ? 'Cloud saved' : 'Cloud'}
-      </span>
-      {lastSaved && (
-        <span className="hidden lg:inline text-xs opacity-60">· {relativeTime(lastSaved)}</span>
-      )}
+    <span
+      className="w-8 h-8 flex items-center justify-center rounded-lg"
+      title={title}
+      style={{ color: iconColor }}
+    >
+      {icon}
     </span>
   )
 }

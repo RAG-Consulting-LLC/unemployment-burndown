@@ -177,28 +177,25 @@ export default function TemplateManager({
       {/* Save button */}
       <button
         onClick={handleSaveClick}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
           savedFlash
-            ? 'bg-emerald-700 text-white border border-emerald-500'
-            : activeTemplateId
-            ? 'bg-blue-700 hover:bg-blue-600 text-white border border-blue-500'
-            : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-500'
+            ? 'text-emerald-400'
+            : 'hover:bg-white/10'
         }`}
-        title={activeTemplateId ? `Save to "${activeTemplate?.name}"` : 'Save as new template'}
+        style={!savedFlash ? { color: activeTemplateId ? 'var(--accent-blue, #3b82f6)' : 'var(--text-muted)' } : undefined}
+        title={savedFlash ? 'Saved!' : activeTemplateId ? `Save to "${activeTemplate?.name}"` : 'Save as new template'}
       >
-        <SaveIcon />
-        <span>{savedFlash ? 'Saved!' : activeTemplateId ? 'Save' : 'Save'}</span>
+        {savedFlash ? <CheckIcon /> : <SaveIcon />}
       </button>
 
       {/* Templates dropdown trigger */}
       <div className="relative">
         <button
           onClick={() => { setOpen(o => !o); setMode('idle'); setConfirmDeleteId(null) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-500 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+          style={{ color: 'var(--text-muted)' }}
+          title={activeTemplate ? `Templates: ${activeTemplate.name}` : 'Templates'}
         >
-          <span className="max-w-[100px] truncate">
-            {activeTemplate ? activeTemplate.name : 'Templates'}
-          </span>
           <ChevronDownIcon />
         </button>
 

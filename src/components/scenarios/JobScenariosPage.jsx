@@ -1,0 +1,182 @@
+import SectionCard from '../layout/SectionCard'
+import EnhancedJobScenariosForm from './EnhancedJobScenariosForm'
+import WaterfallChart from '../chart/WaterfallChart'
+import SavingsGrowthChart from '../chart/SavingsGrowthChart'
+import InvestmentGrowthChart from '../chart/InvestmentGrowthChart'
+import TaxComparisonChart from '../chart/TaxComparisonChart'
+import SalaryGrowthChart from '../chart/SalaryGrowthChart'
+import { formatCurrency, formatMonths } from '../../utils/formatters'
+import { computeAllocationAmount, computeMinimumGrossSalary } from '../../utils/stateTaxRates'
+
+export default function JobScenariosPage({
+  jobScenarios,
+  onJobScenariosChange,
+  jobScenarioResults,
+  totalSavings,
+  effectiveExpenses,
+  monthlyBenefits,
+  monthlyInvestments,
+  currentNetBurn,
+}) {
+  const baselineResult = jobScenarioResults?.['__baseline__']
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      {/* Page header */}
+      <div>
+        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+          Job Scenarios Dashboard
+        </h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+          Compare job offers side-by-side. See how salary, location, and start date
+          impact your financial runway, savings growth, and investment trajectory.
+        </p>
+      </div>
+
+      {/* Summary context from financial page */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MiniStat label="Current Savings" value={formatCurrency(totalSavings)} color="var(--accent-blue)" />
+        <MiniStat label="Monthly Expenses" value={formatCurrency(effectiveExpenses)} color="var(--accent-red)" />
+        <MiniStat label="UI Benefits/mo" value={formatCurrency(monthlyBenefits)} color="var(--accent-emerald)" />
+        <MiniStat label="Net Burn/mo" value={formatCurrency(currentNetBurn)} color={currentNetBurn > 0 ? 'var(--accent-red)' : 'var(--accent-emerald)'} />
+      </div>
+
+      {/* Scenario form */}
+      <SectionCard title="Scenarios">
+        <EnhancedJobScenariosForm
+          scenarios={jobScenarios}
+          onChange={onJobScenariosChange}
+          scenarioResults={jobScenarioResults}
+          effectiveExpenses={effectiveExpenses}
+        />
+      </SectionCard>
+
+      {/* Charts dashboard */}
+      {jobScenarios.length > 0 && jobScenarioResults && (
+        <div className="space-y-5">
+          {/* Salary growth - full width feature chart */}
+          <SectionCard title="Salary Growth Projection">
+            <SalaryGrowthChart scenarios={jobScenarios} effectiveExpenses={effectiveExpenses} />
+          </SectionCard>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <SectionCard title="Take-Home Waterfall">
+              <WaterfallChart scenarios={jobScenarios} />
+            </SectionCard>
+
+            <SectionCard title="5-Year Savings Growth">
+              <SavingsGrowthChart
+                scenarios={jobScenarios}
+                scenarioResults={jobScenarioResults}
+              />
+            </SectionCard>
+
+            <SectionCard title="Investment Growth Projection">
+              <InvestmentGrowthChart scenarios={jobScenarios} />
+            </SectionCard>
+
+            <SectionCard title="Tax Burden Comparison">
+              <TaxComparisonChart scenarios={jobScenarios} />
+            </SectionCard>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison table */}
+      {jobScenarios.length > 0 && jobScenarioResults && (
+        <SectionCard title="Scenario Comparison">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Baseline */}
+            {baselineResult && (
+              <div className="rounded-lg border px-4 py-3 space-y-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-card)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-gray-500" />
+                  <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>No Job (Baseline)</p>
+                </div>
+                <MetricRow label="Runway" value={baselineResult.runoutDate ? formatMonths(baselineResult.totalRunwayMonths) : 'Beyond 10 yrs'} />
+                <MetricRow label="Year 1" value={formatCurrency(baselineResult.dataPoints[12]?.balance ?? 0)} />
+                <MetricRow label="Year 3" value={formatCurrency(baselineResult.dataPoints[36]?.balance ?? 0)} />
+                <MetricRow label="Year 5" value={formatCurrency(baselineResult.dataPoints[Math.min(60, baselineResult.dataPoints.length - 1)]?.balance ?? 0)} />
+              </div>
+            )}
+
+            {/* Scenario cards */}
+            {jobScenarios.map(s => {
+              const result = jobScenarioResults[s.id]
+              if (!result) return null
+              const netMonthly = s.monthlyTakeHome - effectiveExpenses
+              const surplus = s.monthlyTakeHome - result.effectiveExpenses
+              const monthlyTax = ((s.grossAnnualSalary || 0) / 12) - s.monthlyTakeHome
+              const savingsAmt = computeAllocationAmount(s.savingsAllocation, s.savingsAllocationType, s.monthlyTakeHome)
+              const investAmt = computeAllocationAmount(s.investmentAllocation, s.investmentAllocationType, s.monthlyTakeHome)
+              const minGross = computeMinimumGrossSalary(effectiveExpenses, s.taxRatePct)
+              const meetsMinimum = s.grossAnnualSalary >= minGross
+
+              return (
+                <div
+                  key={s.id}
+                  className="rounded-lg border px-4 py-3 space-y-2"
+                  style={{ borderColor: s.color + '40', background: s.color + '08' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <p className="text-xs font-semibold truncate" style={{ color: s.color }}>{s.name}</p>
+                  </div>
+                  <MetricRow label="Gross Annual" value={formatCurrency(s.grossAnnualSalary)} />
+                  <MetricRow label="Annual Raise" value={(s.annualRaisePct ?? 0) + '%/yr'} valueColor="var(--accent-blue)" />
+                  {(s.annualRaisePct ?? 0) > 0 && (
+                    <MetricRow
+                      label="Year 5 Salary"
+                      value={formatCurrency(s.grossAnnualSalary * Math.pow(1 + (s.annualRaisePct || 0) / 100, 5))}
+                      valueColor="var(--accent-blue)"
+                    />
+                  )}
+                  <MetricRow label="Monthly Take-Home" value={formatCurrency(s.monthlyTakeHome)} valueColor="var(--accent-emerald)" />
+                  <MetricRow label="Monthly Taxes" value={formatCurrency(monthlyTax)} valueColor="var(--accent-red)" />
+                  <MetricRow
+                    label="Net Monthly"
+                    value={(netMonthly >= 0 ? '+' : '') + formatCurrency(netMonthly) + '/mo'}
+                    valueColor={netMonthly >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)'}
+                  />
+                  <MetricRow
+                    label="Min Required Salary"
+                    value={formatCurrency(minGross) + '/yr'}
+                    valueColor={meetsMinimum ? 'var(--accent-emerald)' : '#f59e0b'}
+                  />
+                  <MetricRow label="To Savings" value={formatCurrency(savingsAmt) + '/mo'} valueColor="#f59e0b" />
+                  <MetricRow label="To Investments" value={formatCurrency(investAmt) + '/mo'} valueColor="#a855f7" />
+                  <MetricRow
+                    label="Monthly Surplus"
+                    value={formatCurrency(surplus) + '/mo'}
+                    valueColor={surplus >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)'}
+                  />
+                  <MetricRow label="Runway" value={result.runoutDate ? formatMonths(result.totalRunwayMonths) : 'Beyond 10 yrs'} />
+                  <MetricRow label="Year 1" value={formatCurrency(result.dataPoints[12]?.balance ?? 0)} />
+                  <MetricRow label="Year 5" value={formatCurrency(result.dataPoints[Math.min(60, result.dataPoints.length - 1)]?.balance ?? 0)} />
+                </div>
+              )
+            })}
+          </div>
+        </SectionCard>
+      )}
+    </main>
+  )
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div className="theme-card rounded-xl border px-3 py-2.5">
+      <p className="text-xs uppercase tracking-wider font-semibold mb-0.5" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-base font-bold" style={{ color }}>{value}</p>
+    </div>
+  )
+}
+
+function MetricRow({ label, value, valueColor }) {
+  return (
+    <div className="flex justify-between text-xs">
+      <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <span className="font-medium" style={{ color: valueColor || 'var(--text-primary)' }}>{value}</span>
+    </div>
+  )
+}

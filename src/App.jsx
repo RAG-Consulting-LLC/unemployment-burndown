@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { DEFAULTS } from './constants/defaults'
 import { useBurndown } from './hooks/useBurndown'
@@ -7,22 +8,7 @@ import { useActivityLog } from './hooks/useActivityLog'
 import { useAuth } from './hooks/useAuth'
 import LoginScreen from './components/auth/LoginScreen'
 import Header from './components/layout/Header'
-import SectionCard from './components/layout/SectionCard'
-import RunwayBanner from './components/dashboard/RunwayBanner'
-import ChartTabsSection from './components/chart/ChartTabsSection'
-import SavingsPanel from './components/finances/SavingsPanel'
-import UnemploymentPanel from './components/finances/UnemploymentPanel'
-import ExpensePanel from './components/finances/ExpensePanel'
-import OneTimeExpensePanel from './components/finances/OneTimeExpensePanel'
-import OneTimeIncomePanel from './components/finances/OneTimeIncomePanel'
-import MonthlyIncomePanel from './components/finances/MonthlyIncomePanel'
-import AssetsPanel from './components/finances/AssetsPanel'
-import InvestmentsPanel from './components/finances/InvestmentsPanel'
-import SubscriptionsPanel from './components/finances/SubscriptionsPanel'
-import CreditCardsPanel from './components/finances/CreditCardsPanel'
-import WhatIfPanel from './components/scenarios/WhatIfPanel'
 import TemplateManager from './components/templates/TemplateManager'
-import PeopleManager from './components/people/PeopleManager'
 import PersonFilter from './components/people/PersonFilter'
 import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
@@ -31,10 +17,31 @@ import ViewMenu from './components/layout/ViewMenu'
 import CloudSaveStatus from './components/layout/CloudSaveStatus'
 import ActivityLogPanel from './components/layout/ActivityLogPanel'
 import FinancialSidebar from './components/layout/FinancialSidebar'
+import BurndownPage from './pages/BurndownPage'
+import CreditCardHubPage from './pages/CreditCardHubPage'
+import JobScenariosPage from './components/scenarios/JobScenariosPage'
 import { useS3Storage } from './hooks/useS3Storage'
+import { usePlaid } from './hooks/usePlaid'
 import { diffArray, diffObject, diffPrimitive } from './utils/diffSection'
 import { CommentsProvider } from './context/CommentsContext'
 import CommentsPanel from './components/comments/CommentsPanel'
+import PlaidLinkButton from './components/plaid/PlaidLinkButton'
+import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
+
+// Migrate old job scenario shape to enhanced model (backward compat)
+function migrateJobScenario(s) {
+  if (s.grossAnnualSalary != null) return s
+  return {
+    ...s,
+    grossAnnualSalary: (s.monthlyTakeHome || 0) * 12,
+    usState: '',
+    taxRatePct: 0,
+    savingsAllocation: 0,
+    savingsAllocationType: 'dollar',
+    investmentAllocation: 0,
+    investmentAllocationType: 'dollar',
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
@@ -54,7 +61,8 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
   const essentialTotal    = expenses.filter(e => e.essential).reduce((s, e)  => s + (Number(e.monthlyAmount) || 0), 0)
   const nonEssentialTotal = expenses.filter(e => !e.essential).reduce((s, e) => s + (Number(e.monthlyAmount) || 0), 0)
   const reductionFactor   = 1 - (whatIf.expenseReductionPct || 0) / 100
-  const effectiveExpenses = essentialTotal + nonEssentialTotal * reductionFactor
+  const raiseFactor       = 1 + (whatIf.expenseRaisePct || 0) / 100
+  const effectiveExpenses = (essentialTotal + nonEssentialTotal * reductionFactor) * raiseFactor
 
   const sideIncome         = Number(whatIf.sideIncomeMonthly) || 0
   const monthlyInvestments = investments.filter(inv => inv.active).reduce((s, inv) => s + (Number(inv.monthlyAmount) || 0), 0)
@@ -115,7 +123,7 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
     }
     const afterFreeze = freezeDate ? !currentDate.isBefore(freezeDate) : true
     const expReductionFactor = afterFreeze ? reductionFactor : 1
-    const monthExpenses = essentialTotal + nonEssentialTotal * expReductionFactor
+    const monthExpenses = (essentialTotal + nonEssentialTotal * expReductionFactor) * raiseFactor
     const oneTimeCost = oneTimeByMonth[i] || 0
     const oneTimeIncomeThisMonth = oneTimeIncomeByMonth[i] || 0
     const netBurn = monthExpenses + monthlyInvestments - income + oneTimeCost - oneTimeIncomeThisMonth
@@ -163,7 +171,99 @@ const DEFAULT_VIEW = {
     onetimeIncome:   true,
     monthlyIncome:   true,
     assets:          true,
+    plaidAccounts:   true,
   },
+}
+
+function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+        style={{ color: 'var(--text-muted)' }}
+        title="More options"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <circle cx="3" cy="8" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="13" cy="8" r="1.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1.5 w-48 rounded-xl border shadow-2xl z-50 py-1 overflow-hidden"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border-subtle)' }}
+        >
+          <button
+            onClick={() => { onLogOpen(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-input)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" strokeLinecap="round" />
+            </svg>
+            <span className="flex-1 text-left">Activity Log</span>
+            {logCount > 0 && (
+              <span
+                className="text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center"
+                style={{ background: 'var(--accent-blue)', color: '#fff', lineHeight: '16px' }}
+              >
+                {logCount > 99 ? '99+' : logCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => { onPresent(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-input)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            <span className="flex-1 text-left">Present</span>
+          </button>
+
+          <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
+
+          <button
+            onClick={() => { onSignOut(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-input)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span className="flex-1 text-left">Sign out</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function App() {
@@ -189,9 +289,10 @@ function AuthenticatedApp({ logout }) {
   const [creditCards, setCreditCards] = useState(DEFAULTS.creditCards)
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
+  const [jobScenarios, setJobScenarios] = useState(DEFAULTS.jobScenarios)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
-  const [filterPersonId, setFilterPersonId] = useState(null) // null = all, person.id = filter, 'unassigned' = unassigned only
+  const [filterPersonId, setFilterPersonId] = useState(null)
 
   const {
     templates,
@@ -212,8 +313,17 @@ function AuthenticatedApp({ logout }) {
 
   const s3Storage = useS3Storage()
 
+  // Plaid integration — auto-updates savings & credit card balances from bank data
+  const handlePlaidSync = (updatedFullState) => {
+    if (updatedFullState) {
+      applyFullState(updatedFullState)
+      addEntry('sync', 'Plaid sync: balances updated from bank')
+    }
+  }
+  const plaid = usePlaid({ onSyncComplete: handlePlaidSync })
+
   function buildSnapshot() {
-    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios }
   }
 
   function applySnapshot(snapshot) {
@@ -232,6 +342,7 @@ function AuthenticatedApp({ logout }) {
     if (snapshot.investments) setInvestments(snapshot.investments)
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
     if (snapshot.creditCards) setCreditCards(snapshot.creditCards)
+    if (snapshot.jobScenarios) setJobScenarios(snapshot.jobScenarios.map(migrateJobScenario))
   }
 
   // Full state = live snapshot + saved templates (written to / read from file)
@@ -280,7 +391,7 @@ function AuthenticatedApp({ logout }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, templates, comments, defaultPersonId]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -306,6 +417,7 @@ function AuthenticatedApp({ logout }) {
   const summarizeWhatIf       = (v) => {
     const parts = []
     if (v.expenseReductionPct)                           parts.push(`${v.expenseReductionPct}% cut`)
+    if (v.expenseRaisePct)                               parts.push(`+${v.expenseRaisePct}% raise`)
     if (v.sideIncomeMonthly)                             parts.push(`+${_fmtM(v.sideIncomeMonthly)}/mo side`)
     if (v.jobOfferSalary && v.jobOfferStartDate)         parts.push(`job ${_fmtM(v.jobOfferSalary)}/mo`)
     if (v.partnerIncomeMonthly && v.partnerStartDate)    parts.push(`partner ${_fmtM(v.partnerIncomeMonthly)}/mo`)
@@ -319,6 +431,7 @@ function AuthenticatedApp({ logout }) {
   const summarizeInvestments  = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
   const summarizeSubs         = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
   const summarizeCCs          = (v) => _allSum(v, 'minimumPayment') + ' min/mo'
+  const summarizeJobScenarios = (v) => `${v.length} scenario${v.length !== 1 ? 's' : ''}`
 
   // Tracked change handlers — capture before/after summary + granular diff details
   function track(getter, setter, label, summarize, diffFn) {
@@ -349,6 +462,7 @@ function AuthenticatedApp({ logout }) {
   const onInvestmentsChange  = track(() => investments,     setInvestments,     'Investments',        summarizeInvestments,  diffArray)
   const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
   const onCreditCardsChange  = track(() => creditCards,     setCreditCards,     'Credit cards',       summarizeCCs,          diffArray)
+  const onJobScenariosChange = track(() => jobScenarios,    setJobScenarios,    'Job scenarios',      summarizeJobScenarios, diffArray)
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -411,8 +525,35 @@ function AuthenticatedApp({ logout }) {
     return results
   }, [templates])
 
+  // Pre-compute burndown results for each job scenario (for Job Scenarios tab)
+  const jobScenarioResults = useMemo(() => {
+    const baseWhatIfForScenarios = { ...whatIf, jobOfferSalary: 0, jobOfferStartDate: '' }
+    const results = {}
+    for (const scenario of jobScenarios) {
+      const scenarioWhatIf = {
+        ...baseWhatIfForScenarios,
+        jobOfferSalary: scenario.monthlyTakeHome,
+        jobOfferStartDate: scenario.startDate,
+        jobOfferAnnualRaisePct: scenario.annualRaisePct || 0,
+      }
+      results[scenario.id] = computeBurndown(
+        totalSavings, unemployment, expensesWithSubs, scenarioWhatIf,
+        oneTimeExpenses, assetProceeds, investments, oneTimeIncome,
+        monthlyIncome, furloughDate
+      )
+    }
+    // Baseline (no job) result
+    results['__baseline__'] = computeBurndown(
+      totalSavings, unemployment, expensesWithSubs, baseWhatIfForScenarios,
+      oneTimeExpenses, assetProceeds, investments, oneTimeIncome,
+      monthlyIncome, furloughDate
+    )
+    return results
+  }, [jobScenarios, totalSavings, unemployment, expensesWithSubs, whatIf, oneTimeExpenses, assetProceeds, investments, oneTimeIncome, monthlyIncome, furloughDate])
+
   const hasWhatIf =
     whatIf.expenseReductionPct > 0 ||
+    (whatIf.expenseRaisePct || 0) > 0 ||
     whatIf.sideIncomeMonthly > 0 ||
     assetProceeds > 0 ||
     (Number(whatIf.emergencyFloor) || 0) > 0 ||
@@ -464,29 +605,18 @@ function AuthenticatedApp({ logout }) {
       )}
 
       <Header
-        lastSaved={s3Storage.lastSaved}
-        savedBy={userName}
         rightSlot={
-          <div className="flex items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
-              title="Sign out"
-              style={{
-                borderColor: 'var(--border-subtle)',
-                background: 'var(--bg-input)',
-                color: 'var(--text-muted)',
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              <span className="hidden sm:inline">Sign out</span>
-            </button>
+          <div className="flex items-center gap-0.5">
             <CloudSaveStatus storage={s3Storage} />
+            {import.meta.env.VITE_PLAID_API_URL && (
+              <PlaidLinkButton
+                createLinkToken={plaid.createLinkToken}
+                exchangeToken={plaid.exchangeToken}
+                syncAll={plaid.syncAll}
+                linkedCount={plaid.linkedItems.length}
+                syncing={plaid.syncing}
+              />
+            )}
             {/* Activity log button */}
             <button
               onClick={() => setLogOpen(true)}
@@ -512,15 +642,8 @@ function AuthenticatedApp({ logout }) {
                 </span>
               )}
             </button>
+            <ThemeToggle />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
-            <button
-              onClick={() => setPresentationMode(true)}
-              className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-700/60 bg-blue-900/20 text-blue-300 hover:bg-blue-800/40 hover:border-blue-600 transition-colors"
-              title="Open presentation mode"
-            >
-              <span>📊</span>
-              <span>Present</span>
-            </button>
             <TemplateManager
               templates={templates}
               activeTemplateId={activeTemplateId}
@@ -532,213 +655,114 @@ function AuthenticatedApp({ logout }) {
               onDuplicate={duplicate}
               onUpdateSnapshot={updateSnapshot}
             />
+            <HeaderOverflow
+              onLogOpen={() => setLogOpen(true)}
+              logCount={logEntries.length}
+              onPresent={() => setPresentationMode(true)}
+              onSignOut={logout}
+            />
           </div>
         }
       />
 
-      <TableOfContents visibleSections={viewSettings.sections} />
-
-      {/* Person filter bar */}
-      {people.length > 0 && (
-        <div className="max-w-5xl mx-auto px-4 pt-4">
-          <PersonFilter people={people} value={filterPersonId} onChange={setFilterPersonId} />
-        </div>
-      )}
-
-      <FinancialSidebar
-        totalSavings={totalSavings}
-        assetProceeds={assetProceeds}
-        effectiveExpenses={current.effectiveExpenses}
-        monthlyBenefits={current.monthlyBenefits}
-        monthlyInvestments={current.monthlyInvestments}
-        currentNetBurn={current.currentNetBurn}
-        totalRunwayMonths={current.totalRunwayMonths}
-        benefitEnd={current.benefitEnd}
-        savingsAccounts={savingsAccounts}
-        expenses={expenses}
-        subscriptions={subscriptions}
-        creditCards={creditCards}
-        investments={investments}
-        oneTimeExpenses={oneTimeExpenses}
-        oneTimeIncome={oneTimeIncome}
-        monthlyIncome={monthlyIncome}
-        unemployment={unemployment}
-        people={people}
-        filterPersonId={filterPersonId}
-      />
-
-      <main className="max-w-5xl mx-auto px-4 py-6 main-bottom-pad space-y-5">
-
-        {/* Hero banner */}
-        <div id="sec-runway" className="scroll-mt-20">
-          <RunwayBanner
-            runoutDate={current.runoutDate}
-            totalRunwayMonths={current.totalRunwayMonths}
-            currentNetBurn={current.currentNetBurn}
-            savings={totalSavings}
-          />
-        </div>
-
-        {/* Chart tabs */}
-        <ChartTabsSection
-          dataPoints={current.dataPoints}
-          runoutDate={current.runoutDate}
-          baseDataPoints={hasWhatIf ? base.dataPoints : null}
-          benefitStart={current.benefitStart}
-          benefitEnd={current.benefitEnd}
-          emergencyFloor={current.emergencyFloor}
-          showEssentials={viewSettings.chartLines.essentialsOnly}
-          showBaseline={viewSettings.chartLines.baseline}
-          expenses={expenses}
-          subscriptions={subscriptions}
-          creditCards={creditCards}
-          investments={investments}
-          monthlyBenefits={current.monthlyBenefits}
-        />
-
-        {/* People / Household */}
-        {viewSettings.sections.household && (
-          <SectionCard id="sec-household" title="Household / People" className="scroll-mt-20">
-            <PeopleManager people={people} onChange={onPeopleChange} />
-          </SectionCard>
-        )}
-
-        {/* Two-column inputs */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Left column */}
-          <div className="space-y-5">
-            <SectionCard id="sec-savings" title="Cash & Savings Accounts" className="scroll-mt-20">
-              <SavingsPanel accounts={savingsAccounts} onChange={onSavingsChange} people={people} filterPersonId={filterPersonId} />
-            </SectionCard>
-
-            <SectionCard id="sec-unemployment" title="Unemployment Benefits" className="scroll-mt-20">
-              <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} filterPersonId={filterPersonId} />
-            </SectionCard>
-          </div>
-
-          {/* Right column */}
-          <div className="space-y-5">
-            {viewSettings.sections.whatif && (
-              <SectionCard id="sec-whatif" title="What-If Scenarios" className="scroll-mt-20">
-                <WhatIfPanel
-                  value={whatIf}
-                  onChange={onWhatIfChange}
-                  onReset={() => {
-                    const snap = activeTemplateId ? getSnapshot(activeTemplateId) : null
-                    setWhatIf(snap?.whatIf ? { ...DEFAULTS.whatIf, ...snap.whatIf } : DEFAULTS.whatIf)
-                  }}
-                  baseRunwayMonths={base.totalRunwayMonths}
-                  altRunwayMonths={current.totalRunwayMonths}
-                  assetProceeds={assetProceeds}
-                  unemployment={unemployment}
-                  templates={templates}
-                  currentResult={current}
-                  templateResults={templateResults}
-                />
-              </SectionCard>
+      <Routes>
+        <Route path="/" element={
+          <>
+            <TableOfContents visibleSections={viewSettings.sections} />
+            {people.length > 0 && (
+              <div className="max-w-5xl mx-auto px-4 pt-4">
+                <PersonFilter people={people} value={filterPersonId} onChange={setFilterPersonId} />
+              </div>
             )}
+            <FinancialSidebar
+              totalSavings={totalSavings}
+              assetProceeds={assetProceeds}
+              effectiveExpenses={current.effectiveExpenses}
+              monthlyBenefits={current.monthlyBenefits}
+              monthlyInvestments={current.monthlyInvestments}
+              currentNetBurn={current.currentNetBurn}
+              totalRunwayMonths={current.totalRunwayMonths}
+              benefitEnd={current.benefitEnd}
+              savingsAccounts={savingsAccounts}
+              expenses={expenses}
+              subscriptions={subscriptions}
+              creditCards={creditCards}
+              investments={investments}
+              oneTimeExpenses={oneTimeExpenses}
+              oneTimeIncome={oneTimeIncome}
+              monthlyIncome={monthlyIncome}
+              unemployment={unemployment}
+              people={people}
+              filterPersonId={filterPersonId}
+            />
+            <BurndownPage
+              current={current}
+              base={base}
+              hasWhatIf={hasWhatIf}
+              totalSavings={totalSavings}
+              viewSettings={viewSettings}
+              people={people}
+              savingsAccounts={savingsAccounts}
+              unemployment={unemployment}
+              expenses={expenses}
+              whatIf={whatIf}
+              oneTimeExpenses={oneTimeExpenses}
+              oneTimeIncome={oneTimeIncome}
+              monthlyIncome={monthlyIncome}
+              assets={assets}
+              investments={investments}
+              subscriptions={subscriptions}
+              creditCards={creditCards}
+              jobScenarios={jobScenarios}
+              onPeopleChange={onPeopleChange}
+              onSavingsChange={onSavingsChange}
+              onUnemploymentChange={onUnemploymentChange}
+              onFurloughChange={onFurloughChange}
+              onExpensesChange={onExpensesChange}
+              onWhatIfChange={onWhatIfChange}
+              onOneTimeExpChange={onOneTimeExpChange}
+              onOneTimeIncChange={onOneTimeIncChange}
+              onMonthlyIncChange={onMonthlyIncChange}
+              onAssetsChange={onAssetsChange}
+              onInvestmentsChange={onInvestmentsChange}
+              onSubsChange={onSubsChange}
+              onCreditCardsChange={onCreditCardsChange}
+              onJobScenariosChange={onJobScenariosChange}
+              furloughDate={furloughDate}
+              assetProceeds={assetProceeds}
+              onWhatIfReset={() => {
+                const snap = activeTemplateId ? getSnapshot(activeTemplateId) : null
+                setWhatIf(snap?.whatIf ? { ...DEFAULTS.whatIf, ...snap.whatIf } : DEFAULTS.whatIf)
+              }}
+              templates={templates}
+              templateResults={templateResults}
+              jobScenarioResults={jobScenarioResults}
+              plaid={plaid}
+              filterPersonId={filterPersonId}
+              onFilterPersonChange={setFilterPersonId}
+            />
+          </>
+        } />
 
-            {/* Mini stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="theme-card rounded-xl border p-4">
-                <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">Monthly Expenses</p>
-                <p className="text-xl font-bold text-primary">
-                  ${Math.round(current.effectiveExpenses).toLocaleString()}
-                </p>
-                <p className="text-xs text-faint mt-0.5">after any reductions</p>
-              </div>
-              <div className="theme-card rounded-xl border p-4">
-                <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">UI Income / Mo</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--accent-emerald)' }}>
-                  ${Math.round(current.monthlyBenefits).toLocaleString()}
-                </p>
-                <p className="text-xs text-faint mt-0.5">
-                  until {(() => {
-                    const d = current.benefitEnd
-                    return d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'
-                  })()}
-                </p>
-              </div>
-              {current.monthlyInvestments > 0 && (
-                <div className="theme-card rounded-xl border p-4 col-span-2">
-                  <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">Active Investments / Mo</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--accent-teal)' }}>
-                    -${Math.round(current.monthlyInvestments).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-faint mt-0.5">added to monthly burn</p>
-                </div>
-              )}
-              {current.totalMonthlyIncome > 0 && (
-                <div className="theme-card rounded-xl border p-4 col-span-2">
-                  <p className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">Monthly Income / Mo</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--accent-emerald)' }}>
-                    +${Math.round(current.totalMonthlyIncome).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-faint mt-0.5">reduces monthly burn</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <Route path="/credit-cards" element={
+          <CreditCardHubPage creditCards={creditCards} people={people} />
+        } />
 
-        {/* Subscriptions — full width */}
-        {viewSettings.sections.subscriptions && (
-          <SectionCard id="sec-subscriptions" title="Subscriptions" className="scroll-mt-20">
-            <SubscriptionsPanel subscriptions={subscriptions} onChange={onSubsChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
+        <Route path="/job-scenarios" element={
+          <JobScenariosPage
+            jobScenarios={jobScenarios}
+            onJobScenariosChange={onJobScenariosChange}
+            jobScenarioResults={jobScenarioResults}
+            totalSavings={totalSavings}
+            effectiveExpenses={current.effectiveExpenses}
+            monthlyBenefits={current.monthlyBenefits}
+            monthlyInvestments={current.monthlyInvestments}
+            currentNetBurn={current.currentNetBurn}
+          />
+        } />
 
-        {/* Credit cards / outstanding debt — full width */}
-        {viewSettings.sections.creditCards && (
-          <SectionCard id="sec-creditcards" title="Credit Cards / Outstanding Debt" className="scroll-mt-20">
-            <CreditCardsPanel cards={creditCards} onChange={onCreditCardsChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        {/* Monthly expense breakdown — full width */}
-        <SectionCard id="sec-expenses" title="Monthly Expenses" className="scroll-mt-20">
-          <ExpensePanel expenses={expenses} onChange={onExpensesChange} people={people} filterPersonId={filterPersonId} />
-        </SectionCard>
-
-        {/* Monthly investments — full width */}
-        {viewSettings.sections.investments && (
-          <SectionCard id="sec-investments" title="Monthly Investments" className="scroll-mt-20">
-            <InvestmentsPanel investments={investments} onChange={onInvestmentsChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        {/* One-time expenses — full width */}
-        {viewSettings.sections.onetimes && (
-          <SectionCard id="sec-onetimes" title="One-Time Expenses" className="scroll-mt-20">
-            <OneTimeExpensePanel expenses={oneTimeExpenses} onChange={onOneTimeExpChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        {/* One-time income injections — full width */}
-        {viewSettings.sections.onetimeIncome && (
-          <SectionCard id="sec-onetimeincome" title="One-Time Income Injections" className="scroll-mt-20">
-            <OneTimeIncomePanel items={oneTimeIncome} onChange={onOneTimeIncChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        {/* Monthly income — full width */}
-        {viewSettings.sections.monthlyIncome && (
-          <SectionCard id="sec-monthlyincome" title="Monthly Income" className="scroll-mt-20">
-            <MonthlyIncomePanel items={monthlyIncome} onChange={onMonthlyIncChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        {/* Sellable assets — full width */}
-        {viewSettings.sections.assets && (
-          <SectionCard id="sec-assets" title="Sellable Assets" className="scroll-mt-20">
-            <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} filterPersonId={filterPersonId} />
-          </SectionCard>
-        )}
-
-        <p className="text-center text-xs text-faint pb-4">
-          Templates are saved to your browser's local storage and persist between sessions.
-        </p>
-      </main>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
     </CommentsProvider>
   )
