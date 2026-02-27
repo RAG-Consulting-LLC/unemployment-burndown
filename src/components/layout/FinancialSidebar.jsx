@@ -145,11 +145,11 @@ function MobileFinancialDrawer({
           {/* Drag handle */}
           <div className="absolute left-1/2 -translate-x-1/2 top-2 w-8 h-1 rounded-full" style={{ background: 'var(--border-default)' }} />
 
-          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs font-semibold uppercase tracking-widest flex-1 min-w-0" style={{ color: 'var(--text-muted)' }}>
             Finances
           </span>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0 ml-2">
             <span className="text-xs tabular-nums" style={{ color: burnColor }}>
               {currentNetBurn > 0 ? '-' : '+'}{fmt(currentNetBurn)}/mo
             </span>

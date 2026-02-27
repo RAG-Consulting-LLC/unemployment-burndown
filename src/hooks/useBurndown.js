@@ -8,12 +8,14 @@ import dayjs from 'dayjs'
  *   emergencyFloor         number  stop runway at this cash floor (default 0)
  *   benefitDelayWeeks      number  shift benefit start by +N weeks
  *   benefitCutWeeks        number  reduce benefit duration by N weeks
+ *   expenseRaisePct         number  0-50   % raise applied to ALL expenses (inflation/lifestyle)
  *   freezeDate             string  ISO date – full spending until here, then reductions kick in
  *   jobOfferSalary         number  monthly take-home after job starts
  *   jobOfferStartDate      string  ISO date job begins
- *   freelanceRamp          array   [{monthOffset, monthlyAmount}] sorted by monthOffset
- *   partnerIncomeMonthly   number  second household income
- *   partnerStartDate       string  ISO date partner income begins
+ *   freelanceRamp              array   [{monthOffset, monthlyAmount}] sorted by monthOffset
+ *   partnerIncomeMonthly       number  second household income
+ *   partnerStartDate           string  ISO date partner income begins
+ *   jobOfferAnnualRaisePct     number  annual salary raise % (compounded yearly)
  */
 export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses = [], extraCash = 0, investments = [], oneTimeIncome = [], monthlyIncome = [], startDate = null) {
   return useMemo(() => {
@@ -37,7 +39,8 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       .reduce((sum, e) => sum + (Number(e.monthlyAmount) || 0), 0)
 
     const reductionFactor = 1 - (whatIf.expenseReductionPct || 0) / 100
-    const effectiveExpenses = essentialTotal + nonEssentialTotal * reductionFactor
+    const raiseFactor = 1 + (whatIf.expenseRaisePct || 0) / 100
+    const effectiveExpenses = (essentialTotal + nonEssentialTotal * reductionFactor) * raiseFactor
 
     // --- Flat side income ---
     const sideIncome = Number(whatIf.sideIncomeMonthly) || 0
@@ -72,6 +75,7 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
     // --- Job offer ---
     const jobSalary    = Number(whatIf.jobOfferSalary) || 0
     const jobStartDate = whatIf.jobOfferStartDate ? dayjs(whatIf.jobOfferStartDate) : null
+    const jobAnnualRaisePct = Number(whatIf.jobOfferAnnualRaisePct) || 0
 
     // --- Freeze date ---
     const freezeDate = whatIf.freezeDate ? dayjs(whatIf.freezeDate) : null
@@ -122,8 +126,18 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       const jobActive = jobStartDate && !currentDate.isBefore(jobStartDate)
       if (!jobActive) income += sideIncome
 
-      // Job offer salary
-      if (jobActive) income += jobSalary
+      // Job offer salary (with annual raise compounding)
+      if (jobActive) {
+        if (jobAnnualRaisePct > 0 && jobStartDate) {
+          const monthsSinceStart = currentDate.diff(jobStartDate, 'month')
+          const fullYears = Math.floor(monthsSinceStart / 12)
+          income += fullYears > 0
+            ? jobSalary * Math.pow(1 + jobAnnualRaisePct / 100, fullYears)
+            : jobSalary
+        } else {
+          income += jobSalary
+        }
+      }
 
       // Partner income
       const partnerActive = partnerStartDate && !currentDate.isBefore(partnerStartDate)
@@ -148,7 +162,7 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       // Expense reduction only applies after freeze date (or always if no freeze date)
       const afterFreeze = freezeDate ? !currentDate.isBefore(freezeDate) : true
       const expReductionFactor = afterFreeze ? reductionFactor : 1
-      const monthExpenses = essentialTotal + nonEssentialTotal * expReductionFactor
+      const monthExpenses = (essentialTotal + nonEssentialTotal * expReductionFactor) * raiseFactor
 
       const oneTimeCost = oneTimeByMonth[i] || 0
       const oneTimeIncomeThisMonth = oneTimeIncomeByMonth[i] || 0
@@ -157,7 +171,7 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       balance = balance - netBurn
 
       // Essentials-only parallel track (no discretionary spending, no one-time costs)
-      const netBurnEssentialOnly = essentialTotal + monthlyInvestments - income
+      const netBurnEssentialOnly = essentialTotal * raiseFactor + monthlyInvestments - income
       const prevBalanceEssential = balanceEssential
       balanceEssential = balanceEssential - netBurnEssentialOnly
 
@@ -208,7 +222,15 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
     const partnerActiveNow = partnerStartDate && !today.isBefore(partnerStartDate)
     let currentIncome = (currentInBenefit ? monthlyBenefits : 0) + activeMonthlyIncomeNow
     if (jobActiveNow) {
-      currentIncome += jobSalary
+      if (jobAnnualRaisePct > 0 && jobStartDate) {
+        const monthsNow = today.diff(jobStartDate, 'month')
+        const yearsNow = Math.floor(Math.max(0, monthsNow) / 12)
+        currentIncome += yearsNow > 0
+          ? jobSalary * Math.pow(1 + jobAnnualRaisePct / 100, yearsNow)
+          : jobSalary
+      } else {
+        currentIncome += jobSalary
+      }
     } else {
       currentIncome += sideIncome
     }

@@ -1,0 +1,223 @@
+import { useMemo, useState } from 'react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
+} from 'recharts'
+import { formatCurrency } from '../../utils/formatters'
+import { computeMonthlyTakeHome } from '../../utils/stateTaxRates'
+
+const ZOOM_OPTIONS = [
+  { label: '5Y', years: 5 },
+  { label: '10Y', years: 10 },
+  { label: '15Y', years: 15 },
+  { label: '20Y', years: 20 },
+]
+
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0]?.payload
+  return (
+    <div className="rounded-lg px-3 py-2 text-sm shadow-xl space-y-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
+      <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Year {d?.year}</p>
+      {payload.map(p => (
+        <div key={p.dataKey} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+          <span style={{ color: p.color }} className="font-semibold">
+            {p.name}: {formatCurrency(p.value)}/yr
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function SalaryGrowthChart({ scenarios, effectiveExpenses = 0 }) {
+  const [zoom, setZoom] = useState(10)
+  const [mode, setMode] = useState('gross') // 'gross' | 'takeHome'
+
+  const chartData = useMemo(() => {
+    if (!scenarios.length) return []
+    const data = []
+
+    for (let y = 0; y <= zoom; y++) {
+      const point = { year: y, yearLabel: `Year ${y}` }
+      for (const s of scenarios) {
+        const raisePct = s.annualRaisePct || 0
+        const raiseFactor = y > 0 && raisePct > 0
+          ? Math.pow(1 + raisePct / 100, y)
+          : 1
+        const projectedGross = s.grossAnnualSalary * raiseFactor
+
+        if (mode === 'gross') {
+          point[s.name] = Math.round(projectedGross)
+        } else {
+          point[s.name] = Math.round(computeMonthlyTakeHome(projectedGross, s.taxRatePct) * 12)
+        }
+      }
+
+      // Add expense line for reference
+      if (effectiveExpenses > 0 && mode === 'takeHome') {
+        point['Annual Expenses'] = Math.round(effectiveExpenses * 12)
+      }
+
+      data.push(point)
+    }
+    return data
+  }, [scenarios, zoom, mode, effectiveExpenses])
+
+  if (!scenarios.length) return null
+
+  const allKeys = scenarios.map(s => s.name)
+  const maxVal = Math.max(0, ...chartData.map(d => Math.max(...allKeys.map(k => d[k] ?? 0))))
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1">
+          {ZOOM_OPTIONS.map(opt => (
+            <button
+              key={opt.label}
+              onClick={() => setZoom(opt.years)}
+              className="text-xs px-2.5 py-1 rounded-lg border transition-colors"
+              style={{
+                borderColor: zoom === opt.years ? 'var(--accent-blue)' : 'var(--border-subtle)',
+                background: zoom === opt.years ? 'var(--accent-blue)' + '20' : 'transparent',
+                color: zoom === opt.years ? 'var(--accent-blue)' : 'var(--text-faint)',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-md overflow-hidden border" style={{ borderColor: 'var(--border-default)' }}>
+          <button
+            onClick={() => setMode('gross')}
+            className="text-xs px-3 py-1 transition-colors"
+            style={{
+              background: mode === 'gross' ? 'var(--accent-blue)' + '20' : 'var(--bg-input)',
+              color: mode === 'gross' ? 'var(--accent-blue)' : 'var(--text-faint)',
+            }}
+          >
+            Gross
+          </button>
+          <button
+            onClick={() => setMode('takeHome')}
+            className="text-xs px-3 py-1 transition-colors"
+            style={{
+              background: mode === 'takeHome' ? 'var(--accent-emerald)' + '20' : 'var(--bg-input)',
+              color: mode === 'takeHome' ? 'var(--accent-emerald)' : 'var(--text-faint)',
+            }}
+          >
+            Take-Home
+          </button>
+        </div>
+      </div>
+
+      <div style={{ width: '100%', height: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis
+              dataKey="yearLabel"
+              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tickFormatter={v => {
+                if (v >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M'
+                if (v >= 1000) return '$' + (v / 1000).toFixed(0) + 'k'
+                return '$' + v
+              }}
+              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={60}
+              domain={[0, maxVal * 1.1]}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+
+            {/* Expense reference line when in take-home mode */}
+            {mode === 'takeHome' && effectiveExpenses > 0 && (
+              <Line
+                type="monotone"
+                dataKey="Annual Expenses"
+                stroke="#ef4444"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                dot={false}
+              />
+            )}
+
+            {scenarios.map(s => (
+              <Line
+                key={s.id}
+                type="monotone"
+                dataKey={s.name}
+                stroke={s.color}
+                strokeWidth={2.5}
+                dot={{ r: 3, strokeWidth: 0, fill: s.color }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Quick stats table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ color: 'var(--text-muted)' }}>
+              <th className="text-left py-1 pr-3 font-medium">Scenario</th>
+              <th className="text-right py-1 px-2 font-medium">Raise</th>
+              <th className="text-right py-1 px-2 font-medium">Year 1</th>
+              <th className="text-right py-1 px-2 font-medium">Year 3</th>
+              <th className="text-right py-1 px-2 font-medium">Year 5</th>
+              <th className="text-right py-1 px-2 font-medium">Year 10</th>
+              <th className="text-right py-1 pl-2 font-medium">Total Earned (10yr)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map(s => {
+              const r = (s.annualRaisePct || 0) / 100
+              const g = s.grossAnnualSalary
+              const yr = (y) => g * Math.pow(1 + r, y)
+              // Total earnings over 10 years = sum of geometric series
+              const totalEarned = r > 0
+                ? g * (Math.pow(1 + r, 10) - 1) / r
+                : g * 10
+
+              return (
+                <tr key={s.id} className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <td className="py-1.5 pr-3 font-medium" style={{ color: s.color }}>
+                    <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: s.color }} />
+                    {s.name}
+                  </td>
+                  <td className="text-right py-1.5 px-2" style={{ color: 'var(--text-secondary)' }}>
+                    {s.annualRaisePct ?? 0}%
+                  </td>
+                  <td className="text-right py-1.5 px-2" style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(yr(1))}
+                  </td>
+                  <td className="text-right py-1.5 px-2" style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(yr(3))}
+                  </td>
+                  <td className="text-right py-1.5 px-2" style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(yr(5))}
+                  </td>
+                  <td className="text-right py-1.5 px-2" style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(yr(10))}
+                  </td>
+                  <td className="text-right py-1.5 pl-2 font-semibold" style={{ color: 'var(--accent-emerald)' }}>
+                    {formatCurrency(totalEarned)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

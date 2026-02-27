@@ -68,12 +68,11 @@ export default function ThemeToggle() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-500 transition-colors"
-        title="Change theme"
+        className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+        style={{ color: 'var(--text-muted)' }}
+        title={`Theme: ${active.label}`}
       >
         <active.Icon />
-        <span className="hidden sm:inline">{active.label}</span>
-        <ChevronDownIcon />
       </button>
 
       {open && (

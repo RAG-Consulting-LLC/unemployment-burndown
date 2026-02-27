@@ -1,0 +1,64 @@
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
+} from 'recharts'
+import { formatCurrency } from '../../utils/formatters'
+
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg px-3 py-2 text-sm shadow-xl space-y-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
+      <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{label}</p>
+      {payload.map(p => (
+        <p key={p.dataKey} style={{ color: p.fill || p.color }} className="font-semibold">
+          {p.name}: {formatCurrency(p.value)}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+export default function TaxComparisonChart({ scenarios }) {
+  if (!scenarios.length) return null
+
+  const data = scenarios.map(s => ({
+    name: s.name,
+    takeHome: s.monthlyTakeHome * 12,
+    taxes: s.grossAnnualSalary * (s.taxRatePct / 100),
+    color: s.color,
+  }))
+
+  return (
+    <div style={{ width: '100%', height: 280 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+          <XAxis
+            dataKey="name"
+            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            tickFormatter={v => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)}
+            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+            width={52}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={false} />
+          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+
+          <Bar dataKey="takeHome" name="Take-Home" stackId="stack" radius={[0, 0, 0, 0]}>
+            {data.map((entry, idx) => (
+              <Cell key={idx} fill={entry.color} fillOpacity={0.7} />
+            ))}
+          </Bar>
+          <Bar dataKey="taxes" name="Taxes" stackId="stack" radius={[4, 4, 0, 0]}>
+            {data.map((entry, idx) => (
+              <Cell key={idx} fill="#ef4444" fillOpacity={0.6} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}

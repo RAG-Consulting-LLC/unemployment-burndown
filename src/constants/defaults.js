@@ -26,6 +26,7 @@ export const DEFAULTS = {
   ],
   whatIf: {
     expenseReductionPct: 0,
+    expenseRaisePct: 0,
     sideIncomeMonthly: 0,
     emergencyFloor: 0,
     benefitDelayWeeks: 0,
@@ -49,4 +50,5 @@ export const DEFAULTS = {
   ],
   creditCards: [],
   plaidMeta: {},
+  jobScenarios: [],
 }

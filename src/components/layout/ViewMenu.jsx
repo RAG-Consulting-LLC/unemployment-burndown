@@ -75,23 +75,19 @@ export default function ViewMenu({ value, onChange }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-          totalHidden > 0
-            ? 'border-violet-600/60 bg-violet-900/20 text-violet-300 hover:bg-violet-800/40 hover:border-violet-500'
-            : 'border-gray-700/60 bg-gray-800/30 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-        }`}
+        className="relative w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+        style={{ color: totalHidden > 0 ? 'var(--accent-blue, #3b82f6)' : 'var(--text-muted)' }}
         title="Customize views and visible sections"
       >
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
           <rect x="1" y="2" width="6" height="5" rx="1" />
           <rect x="9" y="2" width="6" height="5" rx="1" />
           <rect x="1" y="9" width="6" height="5" rx="1" />
           <rect x="9" y="9" width="6" height="5" rx="1" />
         </svg>
-        <span className="hidden sm:inline">Views</span>
         {totalHidden > 0 && (
           <span
-            className="text-[10px] rounded-full px-1 min-w-[16px] text-center leading-4 font-bold"
+            className="absolute -top-0.5 -right-0.5 text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold"
             style={{ background: 'var(--accent-blue)', color: '#fff' }}
           >
             {totalHidden}
