@@ -30,6 +30,7 @@ export default [
         { allowConstantExport: true },
       ],
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-empty': ['warn', { allowEmptyCatch: true }],
     },
   },
 ];
