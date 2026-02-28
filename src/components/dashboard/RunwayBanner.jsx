@@ -3,65 +3,70 @@ import { formatDate, formatMonths, formatCurrency } from '../../utils/formatters
 export default function RunwayBanner({ runoutDate, totalRunwayMonths, currentNetBurn, savings }) {
   const months = totalRunwayMonths
 
-  let colorClass, bgClass, borderClass, label
+  let accentColor, accentBorder, dotColor, label
   if (months === null) {
-    colorClass = 'text-emerald-400'
-    bgClass = 'bg-emerald-950/40'
-    borderClass = 'border-emerald-700/40'
+    accentColor = 'text-emerald-400'
+    accentBorder = 'border-emerald-500'
+    dotColor = 'bg-emerald-400'
     label = 'No runout in projection window (10 yrs)'
   } else if (months > 6) {
-    colorClass = 'text-emerald-400'
-    bgClass = 'bg-emerald-950/40'
-    borderClass = 'border-emerald-700/40'
+    accentColor = 'text-emerald-400'
+    accentBorder = 'border-emerald-500'
+    dotColor = 'bg-emerald-400'
     label = null
   } else if (months > 3) {
-    colorClass = 'text-yellow-400'
-    bgClass = 'bg-yellow-950/40'
-    borderClass = 'border-yellow-700/40'
+    accentColor = 'text-amber-400'
+    accentBorder = 'border-amber-500'
+    dotColor = 'bg-amber-400'
     label = null
   } else {
-    colorClass = 'text-red-400'
-    bgClass = 'bg-red-950/40'
-    borderClass = 'border-red-700/40'
+    accentColor = 'text-red-400'
+    accentBorder = 'border-red-500'
+    dotColor = 'bg-red-400'
     label = null
   }
 
   return (
-    <div className={`rounded-xl border ${bgClass} ${borderClass} p-6`}>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">
-            Estimated Runway
-          </p>
-          {label ? (
-            <p className={`text-2xl font-bold ${colorClass}`}>{label}</p>
-          ) : (
-            <>
-              <p className={`text-4xl font-bold ${colorClass} leading-none`}>
-                {formatDate(runoutDate)}
-              </p>
-              <p className="text-gray-400 text-sm mt-1">
-                {formatMonths(months)} of runway remaining
-              </p>
-            </>
-          )}
-        </div>
+    <div className="theme-card rounded-xl border p-5">
+      {/* Top row: label + status dot */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
+        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+          Estimated Runway
+        </h2>
+      </div>
 
-        <div className="flex gap-6 sm:gap-8 text-right">
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">
-              Current Balance
-            </p>
-            <p className="text-2xl font-bold text-white">{formatCurrency(savings)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">
-              Net Burn / Mo
-            </p>
-            <p className={`text-2xl font-bold ${currentNetBurn > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-              {currentNetBurn > 0 ? '-' : '+'}{formatCurrency(Math.abs(currentNetBurn))}
-            </p>
-          </div>
+      {/* Main content */}
+      {label ? (
+        <p className={`text-2xl font-bold ${accentColor} mb-5`}>{label}</p>
+      ) : (
+        <div className="mb-5">
+          <p className={`text-3xl sm:text-4xl font-bold ${accentColor} leading-tight`}>
+            {formatDate(runoutDate)}
+          </p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            {formatMonths(months)} of runway remaining
+          </p>
+        </div>
+      )}
+
+      {/* Stats row */}
+      <div className={`flex gap-6 sm:gap-10 pt-4 border-t`} style={{ borderColor: 'var(--border-subtle)' }}>
+        <div>
+          <p className="text-xs uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+            Balance
+          </p>
+          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {formatCurrency(savings)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
+            Net Burn / Mo
+          </p>
+          <p className={`text-xl font-semibold ${currentNetBurn > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            {currentNetBurn > 0 ? '-' : '+'}{formatCurrency(Math.abs(currentNetBurn))}
+          </p>
         </div>
       </div>
     </div>
