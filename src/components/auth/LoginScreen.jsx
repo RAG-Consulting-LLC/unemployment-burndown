@@ -1,15 +1,127 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
-export default function LoginScreen({ onLogin, error }) {
-  const [username, setUsername] = useState('')
+export default function LoginScreen({ onLogin, onRegister, onVerifyMfa, onCancelMfa, mfaPending, error }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [isRegister, setIsRegister] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  const [localError, setLocalError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e) {
+  const displayError = error || localError
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    onLogin(username, password)
+    setLocalError(null)
+    setSubmitting(true)
+
+    if (isRegister) {
+      if (password !== confirmPassword) {
+        setLocalError('Passwords do not match')
+        setSubmitting(false)
+        return
+      }
+      await onRegister(email, password)
+    } else {
+      await onLogin(email, password)
+    }
+    setSubmitting(false)
   }
 
+  async function handleMfaSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    await onVerifyMfa(mfaCode)
+    setSubmitting(false)
+  }
+
+  // MFA verification screen
+  if (mfaPending) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl border p-8 shadow-xl"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}
+        >
+          <div className="mb-6 text-center">
+            <div
+              className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
+              style={{ background: 'var(--accent-blue)', opacity: 0.9 }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              Two-Factor Authentication
+            </h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Enter the code from your authenticator app
+            </p>
+          </div>
+
+          <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                required
+                autoFocus
+                className="w-full rounded-lg border px-3 py-3 text-center text-2xl font-mono tracking-[0.5em] outline-none transition-colors focus:ring-1"
+                style={{
+                  background: 'var(--bg-input)',
+                  borderColor: 'var(--border-default)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+
+            {displayError && (
+              <p
+                className="text-sm rounded-lg px-3 py-2"
+                style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--accent-red)', border: '1px solid rgba(248,113,113,0.2)' }}
+              >
+                {displayError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting || mfaCode.length !== 6}
+              className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: 'var(--accent-blue)', color: '#fff', opacity: (submitting || mfaCode.length !== 6) ? 0.6 : 1 }}
+            >
+              {submitting ? 'Verifying...' : 'Verify'}
+            </button>
+
+            <button
+              type="button"
+              onClick={onCancelMfa}
+              className="w-full text-sm py-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Back to login
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // Login / Register screen
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
@@ -19,7 +131,6 @@ export default function LoginScreen({ onLogin, error }) {
         className="w-full max-w-sm rounded-2xl border p-8 shadow-xl"
         style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}
       >
-        {/* Logo / title */}
         <div className="mb-8 text-center">
           <div
             className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
@@ -33,25 +144,25 @@ export default function LoginScreen({ onLogin, error }) {
             Financial Burndown
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Sign in to access your data
+            {isRegister ? 'Create your account' : 'Sign in to access your data'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
-              htmlFor="username"
+              htmlFor="email"
               className="block text-xs font-medium mb-1.5 uppercase tracking-wide"
               style={{ color: 'var(--text-muted)' }}
             >
-              Username
+              Email
             </label>
             <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               required
               className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors focus:ring-1"
               style={{
@@ -74,10 +185,11 @@ export default function LoginScreen({ onLogin, error }) {
               <input
                 id="password"
                 type={showPass ? 'text' : 'password'}
-                autoComplete="current-password"
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
+                minLength={8}
                 className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors focus:ring-1 pr-10"
                 style={{
                   background: 'var(--bg-input)',
@@ -106,23 +218,75 @@ export default function LoginScreen({ onLogin, error }) {
             </div>
           </div>
 
-          {error && (
+          {isRegister && (
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-xs font-medium mb-1.5 uppercase tracking-wide"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+                className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors focus:ring-1"
+                style={{
+                  background: 'var(--bg-input)',
+                  borderColor: 'var(--border-default)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+          )}
+
+          {displayError && (
             <p
               className="text-sm rounded-lg px-3 py-2"
               style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--accent-red)', border: '1px solid rgba(248,113,113,0.2)' }}
             >
-              {error}
+              {displayError}
             </p>
           )}
 
           <button
             type="submit"
+            disabled={submitting}
             className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 mt-2"
-            style={{ background: 'var(--accent-blue)', color: '#fff' }}
+            style={{ background: 'var(--accent-blue)', color: '#fff', opacity: submitting ? 0.6 : 1 }}
           >
-            Sign In
+            {submitting ? (isRegister ? 'Creating account...' : 'Signing in...') : (isRegister ? 'Create Account' : 'Sign In')}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(v => !v)
+              setLocalError(null)
+            }}
+            className="text-sm hover:underline"
+            style={{ color: 'var(--accent-blue)' }}
+          >
+            {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
+          </button>
+        </div>
+
+        <div className="mt-4 text-center">
+          <Link
+            to="/privacy"
+            className="text-xs hover:underline"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </div>
   )

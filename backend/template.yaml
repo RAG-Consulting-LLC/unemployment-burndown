@@ -31,6 +31,10 @@ Parameters:
     Type: String
     Description: S3 bucket region
     Default: us-west-1
+  JwtSecret:
+    Type: String
+    Description: Secret key for signing JWTs
+    NoEcho: true
   PlaidMonthlyBudget:
     Type: String
     Description: Max monthly Plaid spend in dollars (default $10)
@@ -64,6 +68,8 @@ Globals:
         S3_BUCKET: !Ref S3Bucket
         S3_REGION: !Ref S3Region
         ALLOWED_ORIGIN: !Ref AllowedOrigin
+        JWT_SECRET: !Ref JwtSecret
+        USERS_TABLE: !Ref UsersTable
         PLAID_MONTHLY_BUDGET: !Ref PlaidMonthlyBudget
         PLAID_EST_COST_PER_CALL: !Ref PlaidEstCostPerCall
         PLAID_MAX_SYNC_PAGES: !Ref PlaidMaxSyncPages
@@ -93,7 +99,110 @@ Resources:
         - AttributeName: itemId
           KeyType: RANGE
 
-  # ---------- Lambda Functions ----------
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BurndownUsers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  # ---------- Auth Lambda Functions ----------
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/register.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/register
+            Method: post
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/login.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/login
+            Method: post
+
+  VerifyMfaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/verifyMfa.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/verify-mfa
+            Method: post
+
+  SetupMfaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/setupMfa.setupHandler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/setup-mfa
+            Method: post
+
+  EnableMfaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/setupMfa.enableHandler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/enable-mfa
+            Method: post
+
+  MeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/me.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/auth/me
+            Method: get
+
+  # ---------- Plaid Lambda Functions ----------
   PlaidLinkTokenFunction:
     Type: AWS::Serverless::Function
     Properties:

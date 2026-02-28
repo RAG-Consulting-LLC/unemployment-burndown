@@ -29,6 +29,7 @@ import CommentsPanel from './components/comments/CommentsPanel'
 import PlaidLinkButton from './components/plaid/PlaidLinkButton'
 import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import MfaSetup from './components/auth/MfaSetup'
 
 // Migrate old job scenario shape to enhanced model (backward compat)
 function migrateJobScenario(s) {
@@ -215,7 +216,7 @@ const DEFAULT_VIEW = {
   },
 }
 
-function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
+function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut, onSecurity }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -284,6 +285,20 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
             <span className="flex-1 text-left">Present</span>
           </button>
 
+          <button
+            onClick={() => { onSecurity(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-input)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span className="flex-1 text-left">Security</span>
+          </button>
+
           <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
 
           <button
@@ -307,19 +322,37 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
 }
 
 export default function App() {
-  const { authed, error: authError, login, logout } = useAuth()
+  const { authed, user, error: authError, loading, mfaPending, login, verifyMfa, register, logout, cancelMfa } = useAuth()
   const location = useLocation()
 
   // Privacy policy is accessible without authentication
   if (location.pathname === '/privacy') return <PrivacyPolicyPage />
 
-  if (!authed) return <LoginScreen onLogin={login} error={authError} />
-  return <AuthenticatedApp logout={logout} />
+  // Show loading state while checking token
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
+      <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading...</div>
+    </div>
+  )
+
+  if (!authed) return (
+    <LoginScreen
+      onLogin={login}
+      onRegister={register}
+      onVerifyMfa={verifyMfa}
+      onCancelMfa={cancelMfa}
+      mfaPending={mfaPending}
+      error={authError}
+    />
+  )
+  return <AuthenticatedApp logout={logout} user={user} />
 }
 
-function AuthenticatedApp({ logout }) {
+function AuthenticatedApp({ logout, user }) {
   const [presentationMode, setPresentationMode] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  const [securityOpen, setSecurityOpen] = useState(false)
+  const [mfaEnabled, setMfaEnabled] = useState(user?.mfaEnabled || false)
   const [viewSettings, setViewSettings] = useState(DEFAULT_VIEW)
   const [furloughDate, setFurloughDate] = useState(DEFAULTS.furloughDate)
   const [people, setPeople] = useState(DEFAULTS.people)
@@ -676,6 +709,35 @@ function AuthenticatedApp({ logout }) {
         />
       )}
 
+      {/* Security settings panel */}
+      {securityOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden"
+            style={{ background: 'var(--bg-card)', borderColor: 'var(--border-default)' }}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+              <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Security Settings</h2>
+              <button
+                onClick={() => setSecurityOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Signed in as <strong style={{ color: 'var(--text-primary)' }}>{user?.email}</strong>
+              </div>
+              <MfaSetup mfaEnabled={mfaEnabled} onMfaChange={setMfaEnabled} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <Header
         rightSlot={
           <div className="flex items-center gap-0.5">
@@ -733,6 +795,7 @@ function AuthenticatedApp({ logout }) {
               logCount={logEntries.length}
               onPresent={() => setPresentationMode(true)}
               onSignOut={logout}
+              onSecurity={() => setSecurityOpen(true)}
             />
           </div>
         }
