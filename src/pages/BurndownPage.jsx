@@ -14,7 +14,6 @@ import SubscriptionsPanel from '../components/finances/SubscriptionsPanel'
 import CreditCardsPanel from '../components/finances/CreditCardsPanel'
 import RetirementPanel from '../components/finances/RetirementPanel'
 import WhatIfPanel from '../components/scenarios/WhatIfPanel'
-import PeopleManager from '../components/people/PeopleManager'
 import ConnectedAccountsPanel from '../components/plaid/ConnectedAccountsPanel'
 
 export default function BurndownPage({
@@ -40,7 +39,6 @@ export default function BurndownPage({
   jobScenarios,
   retirement,
   // Change handlers
-  onPeopleChange,
   onJobsChange,
   onSavingsChange,
   onUnemploymentChange,
@@ -96,19 +94,13 @@ export default function BurndownPage({
         monthlyBenefits={current.monthlyBenefits}
       />
 
-      {/* People / Household */}
-      {viewSettings.sections.household && (
-        <SectionCard id="sec-household" title="Household / People" className="scroll-mt-20">
-          <PeopleManager people={people} onChange={onPeopleChange} />
-        </SectionCard>
-      )}
-
       {/* Jobs / Employment */}
       {viewSettings.sections.jobs && (
         <SectionCard id="sec-jobs" title="Jobs / Employment" className="scroll-mt-20">
           <JobsPanel jobs={jobs} onChange={onJobsChange} people={people} />
         </SectionCard>
       )}
+
 
       {/* Two-column inputs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
