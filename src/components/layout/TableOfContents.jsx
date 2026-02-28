@@ -4,6 +4,7 @@ const ALL_SECTIONS = [
   { id: 'sec-runway',       label: 'Runway',        sectionKey: null },
   { id: 'sec-chart',        label: 'Chart',         sectionKey: null },
   { id: 'sec-household',    label: 'Household',     sectionKey: 'household' },
+  { id: 'sec-jobs',         label: 'Jobs',          sectionKey: 'jobs' },
   { id: 'sec-savings',      label: 'Savings',       sectionKey: null },
   { id: 'sec-unemployment', label: 'Benefits',      sectionKey: null },
   { id: 'sec-whatif',       label: 'What-If',       sectionKey: 'whatif' },

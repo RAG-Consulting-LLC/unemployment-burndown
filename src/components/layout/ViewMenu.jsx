@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 // Sections that can be toggled (runway, chart, savings, unemployment, expenses are always shown)
 const SECTION_OPTIONS = [
   { key: 'household',    label: 'Household / People' },
+  { key: 'jobs',         label: 'Jobs / Employment' },
   { key: 'whatif',       label: 'What-If Scenarios' },
   { key: 'subscriptions',label: 'Subscriptions' },
   { key: 'creditCards',  label: 'Credit Cards' },
@@ -23,22 +24,22 @@ const PRESETS = {
   full: {
     label: 'Full',
     chartLines: { allExpenses: true, essentialsOnly: true, baseline: true },
-    sections:   { household: true, whatif: true, subscriptions: true, creditCards: true, investments: true, onetimes: true, onetimeIncome: true, monthlyIncome: true, assets: true },
+    sections:   { household: true, jobs: true, whatif: true, subscriptions: true, creditCards: true, investments: true, onetimes: true, onetimeIncome: true, monthlyIncome: true, assets: true },
   },
   essentials: {
     label: 'Essentials',
     chartLines: { allExpenses: true, essentialsOnly: true, baseline: false },
-    sections:   { household: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
+    sections:   { household: false, jobs: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
   },
   income: {
     label: 'Income Focus',
     chartLines: { allExpenses: true, essentialsOnly: false, baseline: true },
-    sections:   { household: false, whatif: true, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: true, monthlyIncome: true, assets: false },
+    sections:   { household: false, jobs: true, whatif: true, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: true, monthlyIncome: true, assets: false },
   },
   minimal: {
     label: 'Minimal',
     chartLines: { allExpenses: true, essentialsOnly: false, baseline: false },
-    sections:   { household: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
+    sections:   { household: false, jobs: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
   },
 }
 

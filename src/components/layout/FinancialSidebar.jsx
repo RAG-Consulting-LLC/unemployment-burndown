@@ -90,7 +90,7 @@ function MobileFinancialDrawer({
   totalMonthlyIncome, upcomingOneTimeIncome, totalExpensesOnly, totalSubsCost,
   totalCCPayments, upcomingOneTimeExpenses, activeAccounts, activeSubscriptions,
   activeCCPayments, activeInvestments, expenses, monthlyIncome, unemployment,
-  oneTimeExpenses, oneTimeIncome, people = [],
+  oneTimeExpenses, oneTimeIncome, activeJobs = [], totalJobIncome = 0, people = [],
 }) {
   const [open, setOpen] = useState(false)
 
@@ -187,6 +187,11 @@ function MobileFinancialDrawer({
               items={[{ label: unemployment.weeklyAmount ? `$${unemployment.weeklyAmount}/wk` : '', amount: monthlyBenefits }].filter(i => i.label)} />
           )}
 
+          {totalJobIncome > 0 && (
+            <Section label="Job Income" total={totalJobIncome} sign="+" color="var(--accent-emerald)"
+              items={activeJobs.map(j => ({ label: j.title || j.employer || 'Job', amount: Number(j.monthlySalary) || 0, personColor: getPersonColor(people, j.assignedTo) }))} />
+          )}
+
           {totalMonthlyIncome > 0 && (
             <Section label="Monthly Income" total={totalMonthlyIncome} sign="+" color="var(--accent-emerald)"
               items={monthlyIncome.filter(x => x.monthlyAmount).map(x => ({ label: x.name || x.source || 'Income', amount: Number(x.monthlyAmount) || 0, personColor: getPersonColor(people, x.assignedTo) }))} />
@@ -263,6 +268,7 @@ export default function FinancialSidebar({
   oneTimeIncome = [],
   monthlyIncome = [],
   unemployment = {},
+  jobs = [],
   people = [],
 }) {
   const runwayLabel = totalRunwayMonths != null
@@ -293,6 +299,8 @@ export default function FinancialSidebar({
   const totalMonthlyIncome = monthlyIncome.reduce((s, x) => s + (Number(x.monthlyAmount) || 0), 0)
   const upcomingOneTimeExpenses = oneTimeExpenses.filter(e => e.date && e.amount)
   const upcomingOneTimeIncome = oneTimeIncome.filter(e => e.date && e.amount)
+  const activeJobs = jobs.filter(j => j.status === 'active' && (Number(j.monthlySalary) || 0) > 0)
+  const totalJobIncome = activeJobs.reduce((s, j) => s + (Number(j.monthlySalary) || 0), 0)
 
   return (
     <>
@@ -321,6 +329,8 @@ export default function FinancialSidebar({
       unemployment={unemployment}
       oneTimeExpenses={oneTimeExpenses}
       oneTimeIncome={oneTimeIncome}
+      activeJobs={activeJobs}
+      totalJobIncome={totalJobIncome}
       people={people}
     />
     <aside
@@ -375,6 +385,17 @@ export default function FinancialSidebar({
             items={[
               { label: `${unemployment.weeklyAmount ? '$' + unemployment.weeklyAmount + '/wk' : ''}`, amount: monthlyBenefits },
             ].filter(i => i.label)}
+          />
+        )}
+
+        {/* Job Income */}
+        {totalJobIncome > 0 && (
+          <Section
+            label="Job Income"
+            total={totalJobIncome}
+            sign="+"
+            color="var(--accent-emerald)"
+            items={activeJobs.map(j => ({ label: j.title || j.employer || 'Job', amount: Number(j.monthlySalary) || 0, personColor: getPersonColor(people, j.assignedTo) }))}
           />
         )}
 

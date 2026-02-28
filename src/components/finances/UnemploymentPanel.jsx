@@ -2,7 +2,7 @@ import { formatCurrency, formatDate } from '../../utils/formatters'
 import dayjs from 'dayjs'
 import AssigneeSelect from '../people/AssigneeSelect'
 
-export default function UnemploymentPanel({ value, onChange, furloughDate, onFurloughDateChange, people = [] }) {
+export default function UnemploymentPanel({ value, onChange, furloughDate, onFurloughDateChange, people = [], derivedStartDate = null }) {
   function update(field, val) {
     onChange({ ...value, [field]: val })
   }
@@ -23,6 +23,11 @@ export default function UnemploymentPanel({ value, onChange, furloughDate, onFur
             className="w-full sm:w-48 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
           />
           <p className="text-xs text-gray-600 mt-1">The date the burndown simulation starts from.</p>
+          {derivedStartDate && !furloughDate && (
+            <p className="text-xs mt-1" style={{ color: 'var(--accent-amber)' }}>
+              Auto-derived from earliest job status change ({derivedStartDate}). Edit above to override.
+            </p>
+          )}
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

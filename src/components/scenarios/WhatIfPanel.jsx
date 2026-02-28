@@ -3,7 +3,6 @@ import { formatCurrency, formatMonths } from '../../utils/formatters'
 import EmergencyFloorPanel from './EmergencyFloorPanel'
 import BenefitGapPanel from './BenefitGapPanel'
 import ExpenseFreezeDatePanel from './ExpenseFreezeDatePanel'
-import JobOfferPanel from './JobOfferPanel'
 import FreelanceRampPanel from './FreelanceRampPanel'
 import ComparePanel from './ComparePanel'
 
@@ -12,7 +11,6 @@ const TABS = [
   { id: 'floor',     label: 'Cash Floor',  icon: '🛡️' },
   { id: 'benefits',  label: 'Benefit Gap', icon: '⚠️' },
   { id: 'freeze',    label: 'Freeze Date', icon: '📅' },
-  { id: 'job',       label: 'Job Offer',   icon: '💼' },
   { id: 'freelance', label: 'Freelance',   icon: '📈' },
   { id: 'compare',   label: 'Compare',     icon: '⚖️' },
 ]
@@ -47,7 +45,6 @@ export default function WhatIfPanel({
     (Number(value.benefitDelayWeeks) || 0) > 0 ||
     (Number(value.benefitCutWeeks) || 0) > 0 ||
     !!value.freezeDate ||
-    ((Number(value.jobOfferSalary) || 0) > 0 && !!value.jobOfferStartDate) ||
     (value.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0) ||
     (Number(value.partnerIncomeMonthly) || 0) > 0
 
@@ -57,7 +54,6 @@ export default function WhatIfPanel({
       case 'floor':     return (Number(value.emergencyFloor) || 0) > 0
       case 'benefits':  return (Number(value.benefitDelayWeeks) || 0) > 0 || (Number(value.benefitCutWeeks) || 0) > 0
       case 'freeze':    return !!value.freezeDate
-      case 'job':       return (Number(value.jobOfferSalary) || 0) > 0 && !!value.jobOfferStartDate
       case 'freelance': return (value.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0)
       default:          return false
     }
@@ -196,16 +192,6 @@ export default function WhatIfPanel({
       {/* ── Freeze Date ── */}
       {activeTab === 'freeze' && (
         <ExpenseFreezeDatePanel
-          value={value}
-          onChange={onChange}
-          baseRunwayMonths={baseRunwayMonths}
-          altRunwayMonths={altRunwayMonths}
-        />
-      )}
-
-      {/* ── Job Offer ── */}
-      {activeTab === 'job' && (
-        <JobOfferPanel
           value={value}
           onChange={onChange}
           baseRunwayMonths={baseRunwayMonths}
