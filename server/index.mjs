@@ -6,6 +6,10 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import { authenticator } from 'otplib'
+import QRCode from 'qrcode'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -30,6 +34,109 @@ const s3 = new S3Client({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
+})
+
+// ── Auth (in-memory user store for local dev) ──
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
+const users = new Map() // email -> { userId, email, passwordHash, mfaEnabled, mfaSecret }
+
+function signJwt(userId, mfaVerified = false) {
+  return jwt.sign({ sub: userId, mfaVerified }, JWT_SECRET, { expiresIn: '24h' })
+}
+
+function verifyJwt(token) {
+  try { return jwt.verify(token, JWT_SECRET) } catch { return null }
+}
+
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : header
+  if (!token) return res.status(401).json({ error: 'Authentication required' })
+  const payload = verifyJwt(token)
+  if (!payload) return res.status(401).json({ error: 'Invalid or expired token' })
+  req.user = payload
+  next()
+}
+
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+    const userId = email.toLowerCase()
+    if (users.has(userId)) return res.status(409).json({ error: 'An account with this email already exists' })
+    const passwordHash = await bcrypt.hash(password, 12)
+    users.set(userId, { userId, email: userId, passwordHash, mfaEnabled: false, mfaSecret: null })
+    const token = signJwt(userId, false)
+    res.json({ token, user: { userId, email: userId, mfaEnabled: false } })
+  } catch (err) {
+    console.error('register error:', err.message)
+    res.status(500).json({ error: 'Registration failed' })
+  }
+})
+
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
+    const userId = email.toLowerCase()
+    const user = users.get(userId)
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' })
+    const valid = await bcrypt.compare(password, user.passwordHash)
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
+    if (user.mfaEnabled) {
+      const tempToken = signJwt(userId, false)
+      return res.json({ mfaRequired: true, tempToken })
+    }
+    const token = signJwt(userId, true)
+    res.json({ token, user: { userId, email: user.email, mfaEnabled: user.mfaEnabled } })
+  } catch (err) {
+    console.error('login error:', err.message)
+    res.status(500).json({ error: 'Login failed' })
+  }
+})
+
+// POST /api/auth/verify-mfa
+app.post('/api/auth/verify-mfa', authMiddleware, (req, res) => {
+  const { code } = req.body
+  if (!code) return res.status(400).json({ error: 'MFA code is required' })
+  const user = users.get(req.user.sub)
+  if (!user || !user.mfaEnabled || !user.mfaSecret) return res.status(400).json({ error: 'MFA is not enabled' })
+  const isValid = authenticator.verify({ token: code, secret: user.mfaSecret })
+  if (!isValid) return res.status(401).json({ error: 'Invalid MFA code' })
+  const token = signJwt(user.userId, true)
+  res.json({ token, user: { userId: user.userId, email: user.email, mfaEnabled: true } })
+})
+
+// POST /api/auth/setup-mfa
+app.post('/api/auth/setup-mfa', authMiddleware, async (req, res) => {
+  const user = users.get(req.user.sub)
+  if (!user) return res.status(404).json({ error: 'User not found' })
+  const secret = authenticator.generateSecret()
+  const otpauth = authenticator.keyuri(user.email, 'BurndownTracker', secret)
+  const qrCode = await QRCode.toDataURL(otpauth)
+  res.json({ secret, qrCode, otpauth })
+})
+
+// POST /api/auth/enable-mfa
+app.post('/api/auth/enable-mfa', authMiddleware, (req, res) => {
+  const { secret, code } = req.body
+  if (!secret || !code) return res.status(400).json({ error: 'Secret and code are required' })
+  const isValid = authenticator.verify({ token: code, secret })
+  if (!isValid) return res.status(400).json({ error: 'Invalid code. Please try again.' })
+  const user = users.get(req.user.sub)
+  user.mfaEnabled = true
+  user.mfaSecret = secret
+  res.json({ mfaEnabled: true })
+})
+
+// GET /api/auth/me
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  const user = users.get(req.user.sub)
+  if (!user) return res.status(404).json({ error: 'User not found' })
+  res.json({ userId: user.userId, email: user.email, mfaEnabled: user.mfaEnabled })
 })
 
 const config = new Configuration({
