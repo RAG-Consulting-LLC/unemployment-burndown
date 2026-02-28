@@ -10,6 +10,7 @@ import LoginScreen from './components/auth/LoginScreen'
 import Header from './components/layout/Header'
 import TemplateManager from './components/templates/TemplateManager'
 import PersonFilter from './components/people/PersonFilter'
+import PeopleMenu from './components/people/PeopleMenu'
 import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
@@ -162,7 +163,6 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
 const DEFAULT_VIEW = {
   chartLines: { allExpenses: true, essentialsOnly: true, baseline: true },
   sections: {
-    household:     true,
     whatif:        true,
     subscriptions: true,
     creditCards:   true,
@@ -652,6 +652,7 @@ function AuthenticatedApp({ logout }) {
                 </span>
               )}
             </button>
+            <PeopleMenu people={people} onChange={onPeopleChange} />
             <ThemeToggle />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
             <TemplateManager
@@ -724,7 +725,6 @@ function AuthenticatedApp({ logout }) {
               subscriptions={subscriptions}
               creditCards={creditCards}
               jobScenarios={jobScenarios}
-              onPeopleChange={onPeopleChange}
               onSavingsChange={onSavingsChange}
               onUnemploymentChange={onUnemploymentChange}
               onFurloughChange={onFurloughChange}
