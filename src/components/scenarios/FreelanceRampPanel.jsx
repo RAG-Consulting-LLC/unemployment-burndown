@@ -3,7 +3,6 @@ import dayjs from 'dayjs'
 
 const today = dayjs('2026-02-21')
 
-// Default ramp tiers: month offsets 0, 3, 6
 const DEFAULT_TIERS = [
   { monthOffset: 0, monthlyAmount: 0 },
   { monthOffset: 3, monthlyAmount: 0 },
@@ -41,57 +40,38 @@ export default function FreelanceRampPanel({ value, onChange, baseRunwayMonths, 
   const isActive = ramp.some(t => (Number(t.monthlyAmount) || 0) > 0)
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-gray-500">
-        Model freelance or gig income that grows over time. Set a monthly amount for each
-        phase — the tracker ramps up income automatically as each milestone is reached.
-      </p>
-
-      {/* Tier rows */}
-      <div className="space-y-3">
+    <div className="space-y-2.5 pt-2">
+      {/* Compact tier rows */}
+      <div className="space-y-1.5">
         {ramp.map((tier, idx) => {
           const startDate = today.add(tier.monthOffset, 'month')
           return (
-            <div key={idx} className="flex items-center gap-3">
-              <div className="flex flex-col items-center min-w-[56px]">
-                <span className="text-xs text-gray-500">Mo +{tier.monthOffset}</span>
-                <span className="text-xs text-gray-600">{startDate.format('MMM YYYY')}</span>
-              </div>
-
-              {/* Month offset */}
+            <div key={idx} className="flex items-center gap-1.5 group">
+              <span className="text-[10px] text-gray-500 w-10 text-right shrink-0">
+                +{tier.monthOffset}mo
+              </span>
               <input
-                type="number"
-                min="0"
-                max="60"
-                step="1"
+                type="number" min="0" max="60" step="1"
                 value={tier.monthOffset}
                 onChange={e => updateTier(idx, 'monthOffset', Math.max(0, Number(e.target.value)))}
-                className="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-teal-500"
-                title="Month offset from today"
+                className="w-10 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white text-center focus:outline-none focus:border-teal-500"
               />
-
-              <span className="text-gray-600 text-xs">→</span>
-
-              {/* Amount */}
-              <div className="flex items-center gap-1 flex-1">
-                <span className="text-gray-500 text-xs">$</span>
+              <span className="text-gray-600 text-[10px]">→</span>
+              <div className="flex items-center gap-0.5 flex-1">
+                <span className="text-gray-500 text-[10px]">$</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="100"
+                  type="number" min="0" step="100"
                   value={tier.monthlyAmount || ''}
                   placeholder="0"
                   onChange={e => updateTier(idx, 'monthlyAmount', Math.max(0, Number(e.target.value)))}
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-teal-300 focus:outline-none focus:border-teal-500"
+                  className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-teal-300 focus:outline-none focus:border-teal-500"
                 />
-                <span className="text-gray-500 text-xs">/mo</span>
               </div>
-
+              <span className="text-[10px] text-gray-600 w-16 truncate">{startDate.format('MMM \'YY')}</span>
               {ramp.length > 1 && (
                 <button
                   onClick={() => removeTier(idx)}
-                  className="text-gray-600 hover:text-red-400 transition-colors text-sm leading-none"
-                  title="Remove tier"
+                  className="text-gray-700 hover:text-red-400 transition-colors text-xs leading-none opacity-0 group-hover:opacity-100"
                 >
                   ✕
                 </button>
@@ -103,46 +83,25 @@ export default function FreelanceRampPanel({ value, onChange, baseRunwayMonths, 
 
       <button
         onClick={addTier}
-        className="text-xs text-teal-400 hover:text-teal-300 border border-teal-700/40 hover:border-teal-500 px-3 py-1.5 rounded-lg transition-colors w-full"
+        className="text-[10px] text-teal-400 hover:text-teal-300 border border-teal-700/30 hover:border-teal-500 px-2.5 py-1 rounded transition-colors w-full"
       >
         + Add phase
       </button>
 
-      {/* Ramp preview */}
-      {isActive && (
-        <div className="bg-gray-800/60 border border-teal-800/30 rounded-lg px-4 py-3 space-y-1 text-xs">
-          {ramp.map((tier, idx) => (
-            <div key={idx} className="flex justify-between text-gray-400">
-              <span>{today.add(tier.monthOffset, 'month').format('MMM YYYY')} onward</span>
-              <span className="text-teal-400 font-medium">{formatCurrency(tier.monthlyAmount)}/mo</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Impact */}
-      {isActive && delta !== null && (
-        <div className={`rounded-lg px-4 py-3 text-sm border ${
+      {/* Compact impact */}
+      {isActive && delta !== null && delta !== 0 && (
+        <div className={`rounded-lg px-3 py-2 text-xs border ${
           delta > 0
-            ? 'bg-emerald-950/40 border-emerald-700/40 text-emerald-300'
-            : delta < 0
-            ? 'bg-red-950/40 border-red-700/40 text-red-300'
-            : 'bg-gray-700/40 border-gray-600 text-gray-400'
+            ? 'bg-emerald-950/20 border-emerald-700/30'
+            : 'bg-red-950/20 border-red-700/30'
         }`}>
-          {delta > 0 ? (
-            <>Freelance ramp extends runway by <strong>{formatMonths(delta)}</strong>.</>
-          ) : delta < 0 ? (
-            <>Runway is shorter — check your ramp amounts.</>
-          ) : (
-            <>No net runway change.</>
-          )}
+          <div className="flex items-center justify-between text-gray-400">
+            <span>Freelance ramp impact</span>
+            <span className={`font-bold ${delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {delta > 0 ? '+' : ''}{formatMonths(Math.abs(delta))}
+            </span>
+          </div>
         </div>
-      )}
-
-      {!isActive && (
-        <p className="text-xs text-gray-600">
-          Enter income amounts for each phase above. Leave at $0 for phases that haven't started yet.
-        </p>
       )}
     </div>
   )

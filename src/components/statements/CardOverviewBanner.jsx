@@ -74,7 +74,14 @@ export default function CardOverviewBanner({ creditCards, statementIndex, select
                 <span className="text-base">💳</span>
               )}
               <div className="text-left">
-                <div>{card.name}</div>
+                <div>
+                  {card.name}
+                  {card.last4 && (
+                    <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      ••••{card.last4}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                   <span>{formatCurrency(card.balance)}</span>
                   {utilPct !== null && (

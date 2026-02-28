@@ -5,6 +5,7 @@ const ALL_SECTIONS = [
   { id: 'sec-chart',        label: 'Chart',         sectionKey: null },
   { id: 'sec-household',    label: 'Household',     sectionKey: 'household' },
   { id: 'sec-savings',      label: 'Savings',       sectionKey: null },
+  { id: 'sec-plaid',        label: 'Linked Accts',  sectionKey: 'plaidAccounts' },
   { id: 'sec-unemployment', label: 'Benefits',      sectionKey: null },
   { id: 'sec-whatif',       label: 'What-If',       sectionKey: 'whatif' },
   { id: 'sec-subscriptions',label: 'Subscriptions', sectionKey: 'subscriptions' },
@@ -14,7 +15,9 @@ const ALL_SECTIONS = [
   { id: 'sec-onetimes',      label: 'One-Time',      sectionKey: 'onetimes' },
   { id: 'sec-onetimeincome',  label: 'Injections',   sectionKey: 'onetimeIncome' },
   { id: 'sec-monthlyincome', label: 'Mo. Income',   sectionKey: 'monthlyIncome' },
+  { id: 'sec-transactions',  label: 'Transactions',  sectionKey: 'transactions' },
   { id: 'sec-assets',        label: 'Assets',        sectionKey: 'assets' },
+  { id: 'sec-retirement',    label: 'Retirement',    sectionKey: 'retirement' },
 ]
 
 export default function TableOfContents({ visibleSections = {} }) {

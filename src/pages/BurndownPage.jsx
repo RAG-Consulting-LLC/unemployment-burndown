@@ -11,8 +11,10 @@ import AssetsPanel from '../components/finances/AssetsPanel'
 import InvestmentsPanel from '../components/finances/InvestmentsPanel'
 import SubscriptionsPanel from '../components/finances/SubscriptionsPanel'
 import CreditCardsPanel from '../components/finances/CreditCardsPanel'
+import RetirementPanel from '../components/finances/RetirementPanel'
 import WhatIfPanel from '../components/scenarios/WhatIfPanel'
 import PeopleManager from '../components/people/PeopleManager'
+import ConnectedAccountsPanel from '../components/plaid/ConnectedAccountsPanel'
 
 export default function BurndownPage({
   current,
@@ -34,6 +36,7 @@ export default function BurndownPage({
   subscriptions,
   creditCards,
   jobScenarios,
+  retirement,
   // Change handlers
   onPeopleChange,
   onSavingsChange,
@@ -49,6 +52,7 @@ export default function BurndownPage({
   onSubsChange,
   onCreditCardsChange,
   onJobScenariosChange,
+  onRetirementChange,
   // What-if extras
   furloughDate,
   assetProceeds,
@@ -56,6 +60,7 @@ export default function BurndownPage({
   templates,
   templateResults,
   jobScenarioResults,
+  plaid,
 }) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-6 main-bottom-pad space-y-5">
@@ -189,6 +194,23 @@ export default function BurndownPage({
         </SectionCard>
       )}
 
+      {/* Connected bank accounts via Plaid — full width */}
+      {viewSettings.sections.plaidAccounts && import.meta.env.VITE_PLAID_API_URL && plaid && (
+        <SectionCard id="sec-plaid" title="Connected Bank Accounts" className="scroll-mt-20">
+          <ConnectedAccountsPanel
+            linkedItems={plaid.linkedItems}
+            syncing={plaid.syncing}
+            lastSync={plaid.lastSync}
+            error={plaid.error}
+            loading={plaid.loading}
+            fetchAccounts={plaid.fetchAccounts}
+            syncAll={plaid.syncAll}
+            disconnect={plaid.disconnect}
+            hasFetched={plaid.hasFetched}
+          />
+        </SectionCard>
+      )}
+
       {/* Monthly expense breakdown — full width */}
       <SectionCard id="sec-expenses" title="Monthly Expenses" className="scroll-mt-20">
         <ExpensePanel expenses={expenses} onChange={onExpensesChange} people={people} />
@@ -226,6 +248,13 @@ export default function BurndownPage({
       {viewSettings.sections.assets && (
         <SectionCard id="sec-assets" title="Sellable Assets" className="scroll-mt-20">
           <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} />
+        </SectionCard>
+      )}
+
+      {/* Retirement planning — full width */}
+      {viewSettings.sections.retirement && (
+        <SectionCard id="sec-retirement" title="Retirement Planning" className="scroll-mt-20">
+          <RetirementPanel data={retirement} onChange={onRetirementChange} people={people} />
         </SectionCard>
       )}
 

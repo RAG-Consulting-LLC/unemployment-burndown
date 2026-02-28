@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 const SECTION_OPTIONS = [
   { key: 'household',    label: 'Household / People' },
   { key: 'whatif',       label: 'What-If Scenarios' },
+  { key: 'plaidAccounts',label: 'Linked Accounts' },
+  { key: 'transactions', label: 'Transactions' },
   { key: 'subscriptions',label: 'Subscriptions' },
   { key: 'creditCards',  label: 'Credit Cards' },
   { key: 'investments',  label: 'Investments' },
@@ -11,6 +13,7 @@ const SECTION_OPTIONS = [
   { key: 'onetimeIncome',  label: 'One-Time Income' },
   { key: 'monthlyIncome', label: 'Monthly Income' },
   { key: 'assets',        label: 'Sellable Assets' },
+  { key: 'retirement',   label: 'Retirement Planning' },
 ]
 
 const CHART_LINE_OPTIONS = [
@@ -23,22 +26,22 @@ const PRESETS = {
   full: {
     label: 'Full',
     chartLines: { allExpenses: true, essentialsOnly: true, baseline: true },
-    sections:   { household: true, whatif: true, subscriptions: true, creditCards: true, investments: true, onetimes: true, onetimeIncome: true, monthlyIncome: true, assets: true },
+    sections:   { household: true, whatif: true, plaidAccounts: true, transactions: true, subscriptions: true, creditCards: true, investments: true, onetimes: true, onetimeIncome: true, monthlyIncome: true, assets: true, retirement: true },
   },
   essentials: {
     label: 'Essentials',
     chartLines: { allExpenses: true, essentialsOnly: true, baseline: false },
-    sections:   { household: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
+    sections:   { household: false, whatif: false, plaidAccounts: false, transactions: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false, retirement: false },
   },
   income: {
     label: 'Income Focus',
     chartLines: { allExpenses: true, essentialsOnly: false, baseline: true },
-    sections:   { household: false, whatif: true, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: true, monthlyIncome: true, assets: false },
+    sections:   { household: false, whatif: true, plaidAccounts: false, transactions: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: true, monthlyIncome: true, assets: false, retirement: false },
   },
   minimal: {
     label: 'Minimal',
     chartLines: { allExpenses: true, essentialsOnly: false, baseline: false },
-    sections:   { household: false, whatif: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false },
+    sections:   { household: false, whatif: false, plaidAccounts: false, transactions: false, subscriptions: false, creditCards: false, investments: false, onetimes: false, onetimeIncome: false, monthlyIncome: false, assets: false, retirement: false },
   },
 }
 

@@ -76,6 +76,11 @@ export default function StatementList({ statementIndex, creditCards, people = []
             <div className="text-left min-w-0">
               <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                 {getCardName(stmt.cardId)}
+                {getCard(stmt.cardId)?.last4 && (
+                  <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    ••••{getCard(stmt.cardId).last4}
+                  </span>
+                )}
                 {stmt.issuer && (
                   <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     ({stmt.issuer})

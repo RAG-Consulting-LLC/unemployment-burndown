@@ -9,6 +9,7 @@ import { useAuth } from './hooks/useAuth'
 import LoginScreen from './components/auth/LoginScreen'
 import Header from './components/layout/Header'
 import TemplateManager from './components/templates/TemplateManager'
+import PersonFilter from './components/people/PersonFilter'
 import PresentationMode from './components/presentation/PresentationMode'
 import ThemeToggle from './components/layout/ThemeToggle'
 import TableOfContents from './components/layout/TableOfContents'
@@ -20,9 +21,12 @@ import BurndownPage from './pages/BurndownPage'
 import CreditCardHubPage from './pages/CreditCardHubPage'
 import JobScenariosPage from './components/scenarios/JobScenariosPage'
 import { useS3Storage } from './hooks/useS3Storage'
+import { usePlaid } from './hooks/usePlaid'
 import { diffArray, diffObject, diffPrimitive } from './utils/diffSection'
 import { CommentsProvider } from './context/CommentsContext'
 import CommentsPanel from './components/comments/CommentsPanel'
+import PlaidLinkButton from './components/plaid/PlaidLinkButton'
+import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
 
 // Migrate old job scenario shape to enhanced model (backward compat)
 function migrateJobScenario(s) {
@@ -167,6 +171,8 @@ const DEFAULT_VIEW = {
     onetimeIncome:   true,
     monthlyIncome:   true,
     assets:          true,
+    plaidAccounts:   true,
+    retirement:      true,
   },
 }
 
@@ -285,8 +291,10 @@ function AuthenticatedApp({ logout }) {
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
   const [jobScenarios, setJobScenarios] = useState(DEFAULTS.jobScenarios)
+  const [retirement, setRetirement] = useState(DEFAULTS.retirement)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
+  const [filterPersonId, setFilterPersonId] = useState(null)
 
   const {
     templates,
@@ -307,8 +315,17 @@ function AuthenticatedApp({ logout }) {
 
   const s3Storage = useS3Storage()
 
+  // Plaid integration — auto-updates savings & credit card balances from bank data
+  const handlePlaidSync = (updatedFullState) => {
+    if (updatedFullState) {
+      applyFullState(updatedFullState)
+      addEntry('sync', 'Plaid sync: balances updated from bank')
+    }
+  }
+  const plaid = usePlaid({ onSyncComplete: handlePlaidSync })
+
   function buildSnapshot() {
-    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement }
   }
 
   function applySnapshot(snapshot) {
@@ -328,6 +345,7 @@ function AuthenticatedApp({ logout }) {
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
     if (snapshot.creditCards) setCreditCards(snapshot.creditCards)
     if (snapshot.jobScenarios) setJobScenarios(snapshot.jobScenarios.map(migrateJobScenario))
+    if (snapshot.retirement) setRetirement({ ...DEFAULTS.retirement, ...snapshot.retirement })
   }
 
   // Full state = live snapshot + saved templates (written to / read from file)
@@ -376,7 +394,7 @@ function AuthenticatedApp({ logout }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -417,6 +435,12 @@ function AuthenticatedApp({ logout }) {
   const summarizeSubs         = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
   const summarizeCCs          = (v) => _allSum(v, 'minimumPayment') + ' min/mo'
   const summarizeJobScenarios = (v) => `${v.length} scenario${v.length !== 1 ? 's' : ''}`
+  const summarizeRetirement = (v) => {
+    const target = v.targetMode === 'income'
+      ? Math.round((Number(v.desiredAnnualIncome) || 0) / ((Number(v.withdrawalRatePct) || 4) / 100))
+      : Number(v.targetNestEgg) || 0
+    return `age ${v.currentAge}→${v.targetRetirementAge}, target ${_fmtM(target)}, ${_fmtM(v.monthlyContribution)}/mo`
+  }
 
   // Tracked change handlers — capture before/after summary + granular diff details
   function track(getter, setter, label, summarize, diffFn) {
@@ -448,6 +472,7 @@ function AuthenticatedApp({ logout }) {
   const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
   const onCreditCardsChange  = track(() => creditCards,     setCreditCards,     'Credit cards',       summarizeCCs,          diffArray)
   const onJobScenariosChange = track(() => jobScenarios,    setJobScenarios,    'Job scenarios',      summarizeJobScenarios, diffArray)
+  const onRetirementChange   = track(() => retirement,      setRetirement,      'Retirement plan',    summarizeRetirement,   diffObject)
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -593,6 +618,40 @@ function AuthenticatedApp({ logout }) {
         rightSlot={
           <div className="flex items-center gap-0.5">
             <CloudSaveStatus storage={s3Storage} />
+            {import.meta.env.VITE_PLAID_API_URL && (
+              <PlaidLinkButton
+                createLinkToken={plaid.createLinkToken}
+                exchangeToken={plaid.exchangeToken}
+                syncAll={plaid.syncAll}
+                linkedCount={plaid.linkedItems.length}
+                syncing={plaid.syncing}
+              />
+            )}
+            {/* Activity log button */}
+            <button
+              onClick={() => setLogOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+              title="View activity log"
+              style={{
+                borderColor: 'var(--border-subtle)',
+                background: 'var(--bg-input)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" strokeLinecap="round" />
+              </svg>
+              <span className="hidden sm:inline">Log</span>
+              {logEntries.length > 0 && (
+                <span
+                  className="text-xs font-semibold px-1 rounded-full tabular-nums"
+                  style={{ background: 'var(--accent-blue)', color: '#fff', fontSize: '10px', lineHeight: '16px', minWidth: 16, textAlign: 'center' }}
+                >
+                  {logEntries.length > 99 ? '99+' : logEntries.length}
+                </span>
+              )}
+            </button>
             <ThemeToggle />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
             <TemplateManager
@@ -620,6 +679,11 @@ function AuthenticatedApp({ logout }) {
         <Route path="/" element={
           <>
             <TableOfContents visibleSections={viewSettings.sections} />
+            {people.length > 0 && (
+              <div className="max-w-5xl mx-auto px-4 pt-4">
+                <PersonFilter people={people} value={filterPersonId} onChange={setFilterPersonId} />
+              </div>
+            )}
             <FinancialSidebar
               totalSavings={totalSavings}
               assetProceeds={assetProceeds}
@@ -639,6 +703,7 @@ function AuthenticatedApp({ logout }) {
               monthlyIncome={monthlyIncome}
               unemployment={unemployment}
               people={people}
+              filterPersonId={filterPersonId}
             />
             <BurndownPage
               current={current}
@@ -682,6 +747,11 @@ function AuthenticatedApp({ logout }) {
               templates={templates}
               templateResults={templateResults}
               jobScenarioResults={jobScenarioResults}
+              plaid={plaid}
+              filterPersonId={filterPersonId}
+              onFilterPersonChange={setFilterPersonId}
+              retirement={retirement}
+              onRetirementChange={onRetirementChange}
             />
           </>
         } />
