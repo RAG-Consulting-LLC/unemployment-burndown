@@ -67,6 +67,19 @@ export async function disableMfa(userId) {
   }))
 }
 
+export async function updateUserOrg(userId, orgId, orgRole) {
+  await doc().send(new UpdateCommand({
+    TableName: TABLE,
+    Key: { userId },
+    UpdateExpression: 'SET orgId = :oid, orgRole = :role, updatedAt = :u',
+    ExpressionAttributeValues: {
+      ':oid': orgId,
+      ':role': orgRole,
+      ':u': new Date().toISOString(),
+    },
+  }))
+}
+
 export async function deleteUser(userId) {
   await doc().send(new DeleteCommand({
     TableName: TABLE,

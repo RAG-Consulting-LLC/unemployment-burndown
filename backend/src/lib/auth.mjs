@@ -6,9 +6,9 @@ const JWT_EXPIRES_IN = '24h'
 /**
  * Create a signed JWT for a user.
  */
-export function signToken(userId, { mfaVerified = false } = {}) {
+export function signToken(userId, { mfaVerified = false, orgId = null, orgRole = null } = {}) {
   return jwt.sign(
-    { sub: userId, mfaVerified },
+    { sub: userId, mfaVerified, orgId, orgRole },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN },
   )
@@ -57,4 +57,19 @@ export function requireAuth(event, { requireMfa = false } = {}) {
   }
 
   return { user: payload }
+}
+
+/**
+ * Auth middleware that also requires the user to belong to an organization.
+ * Returns { user } with orgId/orgRole guaranteed, or { error }.
+ */
+export function requireOrg(event) {
+  const result = requireAuth(event)
+  if (result.error) return result
+
+  if (!result.user.orgId) {
+    return { error: { statusCode: 403, message: 'Organization membership required' } }
+  }
+
+  return result
 }
