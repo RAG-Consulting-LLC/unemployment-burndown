@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import crypto from 'node:crypto'
 import { existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -36,12 +37,14 @@ const s3 = new S3Client({
   },
 })
 
-// ── Auth (in-memory user store for local dev) ──
+// ── Auth (in-memory stores for local dev) ──
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
-const users = new Map() // email -> { userId, email, passwordHash, mfaEnabled, mfaSecret }
+const users = new Map()  // userId -> { userId, email, passwordHash, mfaEnabled, mfaSecret, orgId, orgRole }
+const orgs = new Map()   // orgId -> { orgId, name, joinCode, ownerId, createdAt }
+const orgMembers = new Map() // orgId -> [{ userId, role, joinedAt }]
 
-function signJwt(userId, mfaVerified = false) {
-  return jwt.sign({ sub: userId, mfaVerified }, JWT_SECRET, { expiresIn: '24h' })
+function signJwt(userId, { mfaVerified = false, orgId = null, orgRole = null } = {}) {
+  return jwt.sign({ sub: userId, mfaVerified, orgId, orgRole }, JWT_SECRET, { expiresIn: '24h' })
 }
 
 function verifyJwt(token) {
@@ -58,6 +61,39 @@ function authMiddleware(req, res, next) {
   next()
 }
 
+function orgMiddleware(req, res, next) {
+  authMiddleware(req, res, () => {
+    if (!req.user.orgId) return res.status(403).json({ error: 'Organization membership required' })
+    next()
+  })
+}
+
+function generateOrgId() { return `org_${crypto.randomBytes(8).toString('hex')}` }
+function generateJoinCode() { return crypto.randomBytes(4).toString('hex').toUpperCase() }
+
+// ── S3 helpers (org-scoped) ──
+function dataKey(orgId) { return orgId ? `orgs/${orgId}/data.json` : 'data.json' }
+function statementsIndexKey(orgId) { return orgId ? `orgs/${orgId}/statements/index.json` : 'statements/index.json' }
+function statementKey(orgId, id) { return orgId ? `orgs/${orgId}/statements/${id}.json` : `statements/${id}.json` }
+
+async function s3Get(key) {
+  const res = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }))
+  return JSON.parse(await res.Body.transformToString('utf-8'))
+}
+
+async function s3Put(key, data) {
+  await s3.send(new PutObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: key,
+    Body: JSON.stringify(data, null, 2),
+    ContentType: 'application/json',
+  }))
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH ROUTES
+// ═══════════════════════════════════════════════════════════════
+
 // POST /api/auth/register
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -67,9 +103,9 @@ app.post('/api/auth/register', async (req, res) => {
     const userId = email.toLowerCase()
     if (users.has(userId)) return res.status(409).json({ error: 'An account with this email already exists' })
     const passwordHash = await bcrypt.hash(password, 12)
-    users.set(userId, { userId, email: userId, passwordHash, mfaEnabled: false, mfaSecret: null })
-    const token = signJwt(userId, false)
-    res.json({ token, user: { userId, email: userId, mfaEnabled: false } })
+    users.set(userId, { userId, email: userId, passwordHash, mfaEnabled: false, mfaSecret: null, orgId: null, orgRole: null })
+    const token = signJwt(userId, { mfaVerified: false, orgId: null, orgRole: null })
+    res.json({ token, user: { userId, email: userId, mfaEnabled: false, orgId: null, orgRole: null } })
   } catch (err) {
     console.error('register error:', err.message)
     res.status(500).json({ error: 'Registration failed' })
@@ -86,12 +122,15 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid email or password' })
     const valid = await bcrypt.compare(password, user.passwordHash)
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
+
+    const orgOpts = { orgId: user.orgId || null, orgRole: user.orgRole || null }
+
     if (user.mfaEnabled) {
-      const tempToken = signJwt(userId, false)
+      const tempToken = signJwt(userId, { mfaVerified: false, ...orgOpts })
       return res.json({ mfaRequired: true, tempToken })
     }
-    const token = signJwt(userId, true)
-    res.json({ token, user: { userId, email: user.email, mfaEnabled: user.mfaEnabled } })
+    const token = signJwt(userId, { mfaVerified: true, ...orgOpts })
+    res.json({ token, user: { userId, email: user.email, mfaEnabled: user.mfaEnabled, ...orgOpts } })
   } catch (err) {
     console.error('login error:', err.message)
     res.status(500).json({ error: 'Login failed' })
@@ -106,8 +145,8 @@ app.post('/api/auth/verify-mfa', authMiddleware, (req, res) => {
   if (!user || !user.mfaEnabled || !user.mfaSecret) return res.status(400).json({ error: 'MFA is not enabled' })
   const isValid = authenticator.verify({ token: code, secret: user.mfaSecret })
   if (!isValid) return res.status(401).json({ error: 'Invalid MFA code' })
-  const token = signJwt(user.userId, true)
-  res.json({ token, user: { userId: user.userId, email: user.email, mfaEnabled: true } })
+  const token = signJwt(user.userId, { mfaVerified: true, orgId: user.orgId, orgRole: user.orgRole })
+  res.json({ token, user: { userId: user.userId, email: user.email, mfaEnabled: true, orgId: user.orgId, orgRole: user.orgRole } })
 })
 
 // POST /api/auth/setup-mfa
@@ -136,8 +175,149 @@ app.post('/api/auth/enable-mfa', authMiddleware, (req, res) => {
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = users.get(req.user.sub)
   if (!user) return res.status(404).json({ error: 'User not found' })
-  res.json({ userId: user.userId, email: user.email, mfaEnabled: user.mfaEnabled })
+  res.json({ userId: user.userId, email: user.email, mfaEnabled: user.mfaEnabled, orgId: user.orgId || null, orgRole: user.orgRole || null })
 })
+
+// ═══════════════════════════════════════════════════════════════
+// ORG ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/org/create
+app.post('/api/org/create', authMiddleware, async (req, res) => {
+  try {
+    const user = users.get(req.user.sub)
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    if (user.orgId) return res.status(409).json({ error: 'You already belong to an organization' })
+
+    const { name } = req.body
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Organization name is required' })
+
+    const orgId = generateOrgId()
+    const joinCode = generateJoinCode()
+    const now = new Date().toISOString()
+
+    orgs.set(orgId, { orgId, name: name.trim(), joinCode, ownerId: user.userId, createdAt: now })
+    orgMembers.set(orgId, [{ userId: user.userId, role: 'owner', joinedAt: now }])
+
+    user.orgId = orgId
+    user.orgRole = 'owner'
+
+    // Initialize data.json for this org in S3
+    const initialData = {
+      state: {
+        people: [
+          { id: 1, name: user.email.split('@')[0], color: '#3b82f6', linkedUserId: user.userId, email: user.email },
+        ],
+        monthlyIncome: 0,
+        savingsAccounts: [],
+        creditCards: [],
+        bills: [],
+        expenses: [],
+      },
+      savedAt: now,
+    }
+    await s3Put(dataKey(orgId), initialData)
+
+    const token = signJwt(user.userId, { mfaVerified: req.user.mfaVerified, orgId, orgRole: 'owner' })
+    res.json({
+      token,
+      org: { orgId, name: name.trim(), joinCode },
+      user: { userId: user.userId, email: user.email, mfaEnabled: user.mfaEnabled, orgId, orgRole: 'owner' },
+    })
+  } catch (err) {
+    console.error('orgCreate error:', err.message)
+    res.status(500).json({ error: 'Failed to create organization' })
+  }
+})
+
+// POST /api/org/join
+app.post('/api/org/join', authMiddleware, async (req, res) => {
+  try {
+    const user = users.get(req.user.sub)
+    if (!user) return res.status(404).json({ error: 'User not found' })
+    if (user.orgId) return res.status(409).json({ error: 'You already belong to an organization' })
+
+    const { joinCode } = req.body
+    if (!joinCode || !joinCode.trim()) return res.status(400).json({ error: 'Join code is required' })
+
+    // Find org by join code
+    let org = null
+    for (const o of orgs.values()) {
+      if (o.joinCode === joinCode.trim().toUpperCase()) { org = o; break }
+    }
+    if (!org) return res.status(404).json({ error: 'Invalid join code' })
+
+    const members = orgMembers.get(org.orgId) || []
+    if (members.find(m => m.userId === user.userId)) {
+      return res.status(409).json({ error: 'You are already a member of this organization' })
+    }
+
+    members.push({ userId: user.userId, role: 'member', joinedAt: new Date().toISOString() })
+    orgMembers.set(org.orgId, members)
+
+    user.orgId = org.orgId
+    user.orgRole = 'member'
+
+    // Add as person in data.json
+    try {
+      const data = await s3Get(dataKey(org.orgId))
+      if (data && data.state) {
+        const maxId = (data.state.people || []).reduce((max, p) => Math.max(max, p.id || 0), 0)
+        data.state.people = data.state.people || []
+        data.state.people.push({
+          id: maxId + 1,
+          name: user.email.split('@')[0],
+          color: '#8b5cf6',
+          linkedUserId: user.userId,
+          email: user.email,
+        })
+        data.savedAt = new Date().toISOString()
+        await s3Put(dataKey(org.orgId), data)
+      }
+    } catch (e) {
+      console.warn('Could not update data.json for join:', e.message)
+    }
+
+    const token = signJwt(user.userId, { mfaVerified: req.user.mfaVerified, orgId: org.orgId, orgRole: 'member' })
+    res.json({
+      token,
+      org: { orgId: org.orgId, name: org.name },
+      user: { userId: user.userId, email: user.email, mfaEnabled: user.mfaEnabled, orgId: org.orgId, orgRole: 'member' },
+    })
+  } catch (err) {
+    console.error('orgJoin error:', err.message)
+    res.status(500).json({ error: 'Failed to join organization' })
+  }
+})
+
+// GET /api/org
+app.get('/api/org', orgMiddleware, (req, res) => {
+  const org = orgs.get(req.user.orgId)
+  if (!org) return res.status(404).json({ error: 'Organization not found' })
+
+  const members = (orgMembers.get(req.user.orgId) || []).map(m => {
+    const u = users.get(m.userId)
+    return { userId: m.userId, email: u?.email || m.userId, role: m.role, joinedAt: m.joinedAt }
+  })
+
+  const response = { orgId: org.orgId, name: org.name, createdAt: org.createdAt, members }
+  if (req.user.orgRole === 'owner') response.joinCode = org.joinCode
+
+  res.json(response)
+})
+
+// POST /api/org/regenerate-code
+app.post('/api/org/regenerate-code', orgMiddleware, (req, res) => {
+  if (req.user.orgRole !== 'owner') return res.status(403).json({ error: 'Only the owner can regenerate the join code' })
+  const org = orgs.get(req.user.orgId)
+  if (!org) return res.status(404).json({ error: 'Organization not found' })
+  org.joinCode = generateJoinCode()
+  res.json({ joinCode: org.joinCode })
+})
+
+// ═══════════════════════════════════════════════════════════════
+// PLAID ROUTES
+// ═══════════════════════════════════════════════════════════════
 
 const config = new Configuration({
   basePath: PlaidEnvironments.sandbox,
@@ -185,11 +365,11 @@ function recordDevCall() {
   callCounter.count++
 }
 
-// Create a link token for Plaid Link
-app.post('/api/plaid/create-link-token', async (req, res) => {
+// Create a link token for Plaid Link (org-scoped)
+app.post('/api/plaid/create-link-token', orgMiddleware, async (req, res) => {
   try {
     const response = await plaidClient.linkTokenCreate({
-      user: { client_user_id: 'burndown-user-1' },
+      user: { client_user_id: req.user.orgId },
       client_name: 'Burndown Tracker',
       products: [Products.Transactions],
       country_codes: [CountryCode.Us],
@@ -203,7 +383,7 @@ app.post('/api/plaid/create-link-token', async (req, res) => {
 })
 
 // Exchange public_token for access_token and get accounts
-app.post('/api/plaid/exchange-token', async (req, res) => {
+app.post('/api/plaid/exchange-token', orgMiddleware, async (req, res) => {
   try {
     const { public_token } = req.body
 
@@ -255,7 +435,7 @@ app.post('/api/plaid/exchange-token', async (req, res) => {
 })
 
 // Fetch current balances for a linked institution
-app.post('/api/plaid/balances', async (req, res) => {
+app.post('/api/plaid/balances', orgMiddleware, async (req, res) => {
   try {
     const { access_token } = req.body
     const response = await plaidClient.accountsBalanceGet({ access_token })
@@ -276,7 +456,7 @@ app.post('/api/plaid/balances', async (req, res) => {
 })
 
 // Fetch transactions using /transactions/sync for incremental sync
-app.post('/api/plaid/transactions', async (req, res) => {
+app.post('/api/plaid/transactions', orgMiddleware, async (req, res) => {
   try {
     // Budget check
     const budget = checkDevBudget()
@@ -348,7 +528,7 @@ app.post('/api/plaid/transactions', async (req, res) => {
 })
 
 // Budget status endpoint (dev server)
-app.get('/api/plaid/budget', (req, res) => {
+app.get('/api/plaid/budget', authMiddleware, (req, res) => {
   const budget = checkDevBudget()
   res.json({
     ...budget,
@@ -358,17 +538,14 @@ app.get('/api/plaid/budget', (req, res) => {
   })
 })
 
-// ── Data API (S3 proxy — replaces direct public S3 access) ──
-
-async function s3Get(key) {
-  const res = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }))
-  return JSON.parse(await res.Body.transformToString('utf-8'))
-}
+// ═══════════════════════════════════════════════════════════════
+// DATA API (S3 proxy — org-scoped)
+// ═══════════════════════════════════════════════════════════════
 
 // GET /api/data — read data.json
-app.get('/api/data', async (req, res) => {
+app.get('/api/data', orgMiddleware, async (req, res) => {
   try {
-    const data = await s3Get('data.json')
+    const data = await s3Get(dataKey(req.user.orgId))
     res.json(data)
   } catch (err) {
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
@@ -380,14 +557,9 @@ app.get('/api/data', async (req, res) => {
 })
 
 // PUT /api/data — write data.json
-app.put('/api/data', async (req, res) => {
+app.put('/api/data', orgMiddleware, async (req, res) => {
   try {
-    await s3.send(new PutObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: 'data.json',
-      Body: JSON.stringify(req.body, null, 2),
-      ContentType: 'application/json',
-    }))
+    await s3Put(dataKey(req.user.orgId), req.body)
     res.json({ saved: true, savedAt: new Date().toISOString() })
   } catch (err) {
     console.error('PUT /api/data error:', err.message)
@@ -396,9 +568,9 @@ app.put('/api/data', async (req, res) => {
 })
 
 // GET /api/statements — statements index
-app.get('/api/statements', async (req, res) => {
+app.get('/api/statements', orgMiddleware, async (req, res) => {
   try {
-    const data = await s3Get('statements/index.json')
+    const data = await s3Get(statementsIndexKey(req.user.orgId))
     res.json(data)
   } catch (err) {
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
@@ -410,9 +582,9 @@ app.get('/api/statements', async (req, res) => {
 })
 
 // GET /api/statements/:id — single statement
-app.get('/api/statements/:id', async (req, res) => {
+app.get('/api/statements/:id', orgMiddleware, async (req, res) => {
   try {
-    const data = await s3Get(`statements/${req.params.id}.json`)
+    const data = await s3Get(statementKey(req.user.orgId, req.params.id))
     res.json(data)
   } catch (err) {
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {

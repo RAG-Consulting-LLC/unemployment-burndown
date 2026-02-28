@@ -1,6 +1,7 @@
 import { getPlaidClient } from '../lib/plaid.mjs'
 import { getPlaidItemsByUser, getPlaidItem, updateCursor } from '../lib/dynamo.mjs'
 import { readDataJson, writeDataJson } from '../lib/s3.mjs'
+import { requireOrg } from '../lib/auth.mjs'
 import { ok, err } from '../lib/response.mjs'
 import {
   MAX_SYNC_PAGES,
@@ -15,18 +16,20 @@ import {
  * POST /plaid/sync
  *
  * Syncs transactions and account balances from all connected Plaid items.
- * Updates data.json in S3 with fresh balances:
- *   - Checking/Savings → savingsAccounts[].amount
- *   - Credit cards     → creditCards[].balance + creditCards[].creditLimit
+ * Updates data.json in S3 with fresh balances scoped to the user's org.
  *
- * Body: { userId?, itemId? }
+ * Body: { itemId? }
  *   If itemId is provided, only syncs that single item.
- *   Otherwise syncs all items for the user.
+ *   Otherwise syncs all items for the org.
  */
 export async function handler(event) {
   try {
+    const { user, error: authErr } = requireOrg(event)
+    if (authErr) return err(authErr.statusCode, authErr.message)
+
     const body = JSON.parse(event.body || '{}')
-    const { userId = 'default', itemId } = body
+    const { itemId } = body
+    const userId = user.orgId
 
     const client = getPlaidClient()
 
@@ -59,8 +62,8 @@ export async function handler(event) {
       }
     }
 
-    // Read current data.json
-    let data = await readDataJson()
+    // Read current data.json (scoped to org)
+    let data = await readDataJson(user.orgId)
     if (!data || !data.state) {
       return err(400, 'No existing data.json found in S3. Please save data from the app first.')
     }
@@ -141,8 +144,8 @@ export async function handler(event) {
     data.plaidMeta.lastSync = new Date().toISOString()
     data.savedAt = new Date().toISOString()
 
-    // Write updated data back to S3
-    await writeDataJson(data)
+    // Write updated data back to S3 (scoped to org)
+    await writeDataJson(data, user.orgId)
 
     // Record cooldown for each synced item
     for (const item of items) {
