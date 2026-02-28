@@ -3,3 +3,5 @@ dist
 .env
 setup-amplify.mjs
 .claude/
+backend/.aws-sam/
+backend/samconfig.toml

@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function InvestmentsPanel({ investments, onChange, people = [] }) {
+export default function InvestmentsPanel({ investments, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(investments, onChange)
 
   function update(id, field, val) {
@@ -61,14 +62,16 @@ export default function InvestmentsPanel({ investments, onChange, people = [] })
           <span></span>
         </div>
         <div className="space-y-2">
-          {investments.map(inv => (
+          {investments.map(inv => {
+            const dimmed = filterPersonId && !matchesPersonFilter(inv.assignedTo, filterPersonId)
+            return (
             <div
               key={inv.id}
               className={`row-invest-sm flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
                 !inv.active ? 'opacity-50' : ''
               } ${draggingId === inv.id ? 'opacity-40' : ''} ${
                 overedId === inv.id && draggingId !== inv.id ? 'ring-2 ring-teal-500/50 ring-inset' : ''
-              }`}
+              } ${dimmed ? 'opacity-25' : ''}`}
               {...getItemProps(inv.id)}
             >
               {/* Subrow 1: drag · name */}
@@ -129,7 +132,8 @@ export default function InvestmentsPanel({ investments, onChange, people = [] })
                 </button>
               </div>
             </div>
-          ))}
+          )})}
+
         </div>
         </>
       )}

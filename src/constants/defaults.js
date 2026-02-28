@@ -26,6 +26,7 @@ export const DEFAULTS = {
   ],
   whatIf: {
     expenseReductionPct: 0,
+    expenseRaisePct: 0,
     sideIncomeMonthly: 0,
     emergencyFloor: 0,
     benefitDelayWeeks: 0,
@@ -49,4 +50,19 @@ export const DEFAULTS = {
     { id: 103, name: 'Internet', monthlyAmount: 60,  active: true, assignedTo: null },
   ],
   creditCards: [],
+  plaidMeta: {},
+  jobScenarios: [],
+  retirement: {
+    currentAge: 30,
+    targetRetirementAge: 65,
+    currentBalance: 0,
+    monthlyContribution: 500,
+    annualReturnPct: 7,
+    inflationPct: 3,
+    targetMode: 'nestEgg',
+    targetNestEgg: 1000000,
+    desiredAnnualIncome: 40000,
+    withdrawalRatePct: 4,
+    assignedTo: null,
+  },
 }
