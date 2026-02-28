@@ -31,6 +31,22 @@ Parameters:
     Type: String
     Description: S3 bucket region
     Default: us-west-1
+  PlaidMonthlyBudget:
+    Type: String
+    Description: Max monthly Plaid spend in dollars (default $10)
+    Default: '10'
+  PlaidEstCostPerCall:
+    Type: String
+    Description: Estimated cost per Plaid API call in dollars (default $0.10)
+    Default: '0.10'
+  PlaidMaxSyncPages:
+    Type: String
+    Description: Max pagination pages per sync call (prevents runaway loops)
+    Default: '10'
+  PlaidSyncCooldownSeconds:
+    Type: String
+    Description: Minimum seconds between syncs for the same item
+    Default: '300'
 
 Globals:
   Function:
@@ -48,6 +64,10 @@ Globals:
         S3_BUCKET: !Ref S3Bucket
         S3_REGION: !Ref S3Region
         ALLOWED_ORIGIN: !Ref AllowedOrigin
+        PLAID_MONTHLY_BUDGET: !Ref PlaidMonthlyBudget
+        PLAID_EST_COST_PER_CALL: !Ref PlaidEstCostPerCall
+        PLAID_MAX_SYNC_PAGES: !Ref PlaidMaxSyncPages
+        PLAID_SYNC_COOLDOWN_SECONDS: !Ref PlaidSyncCooldownSeconds
 
   Api:
     Cors:
@@ -79,6 +99,9 @@ Resources:
     Properties:
       Handler: src/handlers/linkToken.handler
       CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
       Events:
         Api:
           Type: Api
@@ -148,6 +171,21 @@ Resources:
           Properties:
             Path: /plaid/disconnect
             Method: post
+
+  PlaidBudgetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/budget.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlaidTokensTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /plaid/budget
+            Method: get
 
 Outputs:
   ApiUrl:

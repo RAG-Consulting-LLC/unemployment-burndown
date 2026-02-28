@@ -2,6 +2,14 @@ import { getPlaidClient } from '../lib/plaid.mjs'
 import { getPlaidItemsByUser, getPlaidItem, updateCursor } from '../lib/dynamo.mjs'
 import { readDataJson, writeDataJson } from '../lib/s3.mjs'
 import { ok, err } from '../lib/response.mjs'
+import {
+  MAX_SYNC_PAGES,
+  checkBudget,
+  checkCooldown,
+  recordSyncTime,
+  PlaidBudgetExceededError,
+  PlaidSyncCooldownError,
+} from '../lib/plaidBudget.mjs'
 
 /**
  * POST /plaid/sync
@@ -36,6 +44,21 @@ export async function handler(event) {
       return ok({ message: 'No connected accounts', updated: false })
     }
 
+    // ── Budget guard: reject early if monthly limit already hit ──
+    const budget = await checkBudget()
+    if (!budget.allowed) {
+      return err(429, `Monthly Plaid API budget exhausted (${budget.used}/${budget.limit} calls). Resets ${budget.month}-01.`)
+    }
+
+    // ── Cooldown guard: prevent rapid re-syncs per item ──
+    for (const item of items) {
+      const cooldown = await checkCooldown(item.itemId)
+      if (!cooldown.allowed) {
+        const waitSec = Math.ceil(cooldown.waitMs / 1000)
+        return err(429, `Sync cooldown: please wait ${waitSec}s before syncing ${item.institutionName || item.itemId} again.`)
+      }
+    }
+
     // Read current data.json
     let data = await readDataJson()
     if (!data || !data.state) {
@@ -52,12 +75,14 @@ export async function handler(event) {
     for (const item of items) {
       const { accessToken, itemId: iid } = item
 
-      // ── Sync transactions (cursor-based) ──
+      // ── Sync transactions (cursor-based, page-limited) ──
       let cursor = item.cursor || null
       let hasMore = true
       let addedTxns = []
+      let pageCount = 0
 
-      while (hasMore) {
+      while (hasMore && pageCount < MAX_SYNC_PAGES) {
+        pageCount++
         const syncRes = await client.transactionsSync({
           access_token: accessToken,
           cursor:       cursor || undefined,
@@ -70,6 +95,10 @@ export async function handler(event) {
 
         hasMore = syncData.has_more
         cursor  = syncData.next_cursor
+      }
+
+      if (hasMore) {
+        console.warn(`Sync for item ${iid} hit page limit (${MAX_SYNC_PAGES}). Remaining data will sync on next call.`)
       }
 
       // Persist the cursor for next incremental sync
@@ -115,6 +144,11 @@ export async function handler(event) {
     // Write updated data back to S3
     await writeDataJson(data)
 
+    // Record cooldown for each synced item
+    for (const item of items) {
+      await recordSyncTime(item.itemId)
+    }
+
     return ok({
       updated: true,
       accountsUpdated: allAccountUpdates.length,
@@ -122,6 +156,11 @@ export async function handler(event) {
       data,  // return full updated data so frontend can apply it
     })
   } catch (error) {
+    // Return 429 for budget errors so the frontend can show a clear message
+    if (error instanceof PlaidBudgetExceededError) {
+      console.warn('Budget exceeded during sync:', error.message)
+      return err(429, error.message)
+    }
     console.error('sync error:', error.response?.data || error.message)
     return err(500, error.response?.data?.error_message || error.message)
   }
