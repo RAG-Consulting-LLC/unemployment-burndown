@@ -32,6 +32,10 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import MfaSetup from './components/auth/MfaSetup'
 import OrgSetup from './components/auth/OrgSetup'
 import OrgSettings from './components/org/OrgSettings'
+import { NotificationsProvider } from './context/NotificationsContext'
+import NotificationBell from './components/notifications/NotificationBell'
+import NotificationPanel from './components/notifications/NotificationPanel'
+import ToastContainer from './components/notifications/ToastContainer'
 
 // Migrate old job scenario shape to enhanced model (backward compat)
 function migrateJobScenario(s) {
@@ -403,6 +407,7 @@ function AuthenticatedApp({ logout, user }) {
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
   const [filterPersonId, setFilterPersonId] = useState(null)
+  const [notificationPreferences, setNotificationPreferences] = useState(DEFAULTS.notificationPreferences)
 
   const {
     templates,
@@ -468,6 +473,7 @@ function AuthenticatedApp({ logout, user }) {
       comments,
       defaultPersonId,
       activityLog: logEntries,
+      notificationPreferences,
     }
   }
 
@@ -479,6 +485,7 @@ function AuthenticatedApp({ logout, user }) {
     if (data.comments && typeof data.comments === 'object') setComments(data.comments)
     if (data.defaultPersonId != null) setDefaultPersonId(data.defaultPersonId)
     if (Array.isArray(data.activityLog)) loadEntries(data.activityLog)
+    if (data.notificationPreferences) setNotificationPreferences({ ...DEFAULTS.notificationPreferences, ...data.notificationPreferences })
   }
 
   // When S3 storage loads data on mount, apply it
@@ -503,7 +510,7 @@ function AuthenticatedApp({ logout, user }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId, notificationPreferences]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -700,6 +707,12 @@ function AuthenticatedApp({ logout, user }) {
     ((Number(whatIf.partnerIncomeMonthly) || 0) > 0 && !!whatIf.partnerStartDate)
 
   return (
+    <NotificationsProvider
+      burndown={current}
+      preferences={notificationPreferences}
+      onPreferencesChange={setNotificationPreferences}
+      initialBalance={totalSavings}
+    >
     <CommentsProvider
       comments={comments}
       onCommentsChange={setComments}
@@ -708,6 +721,8 @@ function AuthenticatedApp({ logout, user }) {
       onDefaultPersonChange={setDefaultPersonId}
     >
     <CommentsPanel />
+    <NotificationPanel />
+    <ToastContainer />
     <div className="min-h-screen theme-page" style={{ color: 'var(--text-primary)' }}>
       {/* Presentation overlay — rendered outside main layout so it fills the viewport */}
       {presentationMode && (
@@ -811,6 +826,7 @@ function AuthenticatedApp({ logout, user }) {
                 </span>
               )}
             </button>
+            <NotificationBell />
             <PeopleMenu people={people} onChange={onPeopleChange} />
             <ThemeToggle />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
@@ -942,5 +958,6 @@ function AuthenticatedApp({ logout, user }) {
       </Routes>
     </div>
     </CommentsProvider>
+    </NotificationsProvider>
   )
 }
