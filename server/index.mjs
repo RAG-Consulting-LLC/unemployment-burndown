@@ -32,6 +32,40 @@ const config = new Configuration({
 
 const plaidClient = new PlaidApi(config)
 
+// ── Safety: max pagination pages (matches backend PLAID_MAX_SYNC_PAGES) ──
+const MAX_SYNC_PAGES = parseInt(process.env.PLAID_MAX_SYNC_PAGES || '10', 10)
+
+// ── Safety: in-memory per-item sync cooldown for dev server ──
+const SYNC_COOLDOWN_MS = parseInt(process.env.PLAID_SYNC_COOLDOWN_SECONDS || '300', 10) * 1000
+const lastSyncTimes = new Map()
+
+// ── Safety: in-memory monthly call counter for dev server ──
+const MONTHLY_BUDGET = parseFloat(process.env.PLAID_MONTHLY_BUDGET || '10')
+const EST_COST_PER_CALL = parseFloat(process.env.PLAID_EST_COST_PER_CALL || '0.10')
+const MAX_MONTHLY_CALLS = Math.floor(MONTHLY_BUDGET / EST_COST_PER_CALL)
+let callCounter = { month: new Date().toISOString().slice(0, 7), count: 0 }
+
+function checkDevBudget() {
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  if (callCounter.month !== currentMonth) {
+    callCounter = { month: currentMonth, count: 0 }
+  }
+  return {
+    allowed: callCounter.count < MAX_MONTHLY_CALLS,
+    used: callCounter.count,
+    limit: MAX_MONTHLY_CALLS,
+    remaining: Math.max(0, MAX_MONTHLY_CALLS - callCounter.count),
+  }
+}
+
+function recordDevCall() {
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  if (callCounter.month !== currentMonth) {
+    callCounter = { month: currentMonth, count: 0 }
+  }
+  callCounter.count++
+}
+
 // Create a link token for Plaid Link
 app.post('/api/plaid/create-link-token', async (req, res) => {
   try {
@@ -125,6 +159,12 @@ app.post('/api/plaid/balances', async (req, res) => {
 // Fetch transactions using /transactions/sync for incremental sync
 app.post('/api/plaid/transactions', async (req, res) => {
   try {
+    // Budget check
+    const budget = checkDevBudget()
+    if (!budget.allowed) {
+      return res.status(429).json({ error: `Monthly API budget exhausted (${budget.used}/${budget.limit} calls).` })
+    }
+
     const { access_token, cursor } = req.body
 
     let allAdded = []
@@ -132,8 +172,11 @@ app.post('/api/plaid/transactions', async (req, res) => {
     let allRemoved = []
     let nextCursor = cursor || ''
     let hasMore = true
+    let pageCount = 0
 
-    while (hasMore) {
+    while (hasMore && pageCount < MAX_SYNC_PAGES) {
+      pageCount++
+      recordDevCall()
       const response = await plaidClient.transactionsSync({
         access_token,
         cursor: nextCursor || undefined,
@@ -145,6 +188,10 @@ app.post('/api/plaid/transactions', async (req, res) => {
       allRemoved = allRemoved.concat(data.removed)
       nextCursor = data.next_cursor
       hasMore = data.has_more
+    }
+
+    if (hasMore) {
+      console.warn(`Transactions sync hit page limit (${MAX_SYNC_PAGES}). Remaining data will sync on next call.`)
     }
 
     res.json({
@@ -179,6 +226,17 @@ app.post('/api/plaid/transactions', async (req, res) => {
     console.error('transactions error:', err.response?.data || err.message)
     res.status(500).json({ error: err.response?.data || err.message })
   }
+})
+
+// Budget status endpoint (dev server)
+app.get('/api/plaid/budget', (req, res) => {
+  const budget = checkDevBudget()
+  res.json({
+    ...budget,
+    budgetDollars: MONTHLY_BUDGET,
+    estCostPerCall: EST_COST_PER_CALL,
+    month: new Date().toISOString().slice(0, 7),
+  })
 })
 
 const PORT = process.env.PLAID_SERVER_PORT || 3001
