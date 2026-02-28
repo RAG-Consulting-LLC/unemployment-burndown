@@ -23,140 +23,93 @@ export default function JobOfferPanel({ value, onChange, baseRunwayMonths, altRu
     ? Math.max(0, parseFloat(dayjs(startDate).diff(today, 'day') / 30).toFixed(1))
     : null
 
-  // Annualized gross estimate (take-home * 12, rough)
-  const annualEstimate = salary * 12
-
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-gray-500">
-        Model a job offer: enter your estimated monthly take-home pay and expected start date.
-        Runway resets entirely once you're employed — see exactly which scenario gets you there safely.
-      </p>
-
-      {/* Monthly take-home */}
+    <div className="space-y-3 pt-2">
+      {/* Salary — inline slider + editable value */}
       <div>
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-sm text-gray-300 font-medium">Monthly take-home pay</label>
-          <span className="text-emerald-400 font-bold text-sm bg-emerald-900/30 px-2 py-0.5 rounded">
-            {salary > 0 ? `${formatCurrency(salary)}/mo` : 'Not set'}
-          </span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="15000"
-          step="250"
-          value={salary}
-          onChange={e => update('jobOfferSalary', Number(e.target.value))}
-          className="w-full accent-emerald-500 cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-gray-600 mt-1">
-          <span>$0</span>
-          <span>$7,500</span>
-          <span>$15,000</span>
+        <div className="flex items-center gap-2 mb-1.5">
+          <label className="text-xs text-gray-400 shrink-0">Take-home</label>
+          <input
+            type="range" min="0" max="15000" step="250"
+            value={salary}
+            onChange={e => update('jobOfferSalary', Number(e.target.value))}
+            className="flex-1 h-1.5 accent-emerald-500 cursor-pointer"
+          />
+          <input
+            type="number" min="0" step="100"
+            value={salary || ''}
+            placeholder="$0"
+            onChange={e => update('jobOfferSalary', Math.max(0, Number(e.target.value)))}
+            className="w-20 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-emerald-400 font-bold text-right focus:outline-none focus:border-emerald-500"
+          />
+          <span className="text-xs text-gray-500">/mo</span>
         </div>
         {salary > 0 && (
-          <p className="text-xs text-gray-500 mt-1 text-right">
-            ≈ {formatCurrency(annualEstimate)}/yr take-home
+          <p className="text-[10px] text-gray-600 text-right">
+            {formatCurrency(salary * 12)}/yr
           </p>
         )}
       </div>
 
-      {/* Custom salary input */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">Exact amount:</span>
-        <input
-          type="number"
-          min="0"
-          step="100"
-          value={salary || ''}
-          placeholder="e.g. 5800"
-          onChange={e => update('jobOfferSalary', Math.max(0, Number(e.target.value)))}
-          className="w-36 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-emerald-500"
-        />
-      </div>
-
-      {/* Start date */}
+      {/* Start date + quick picks — single row */}
       <div>
-        <label className="text-sm text-gray-300 font-medium block mb-2">Job start date</label>
-        <input
-          type="date"
-          min={minDate}
-          value={startDate}
-          onChange={e => update('jobOfferStartDate', e.target.value)}
-          className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:border-emerald-500"
-        />
-      </div>
-
-      {/* Quick picks */}
-      <div className="flex flex-wrap gap-2">
-        {[1, 2, 3, 6].map(mo => {
-          const d = today.add(mo, 'month').format('YYYY-MM-DD')
-          return (
-            <button
-              key={mo}
-              onClick={() => update('jobOfferStartDate', d)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                startDate === d
-                  ? 'bg-emerald-600 border-emerald-500 text-white'
-                  : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-emerald-500'
-              }`}
-            >
-              +{mo} mo
-            </button>
-          )
-        })}
-        {(salary > 0 || startDate) && (
-          <button
-            onClick={() => onChange({ ...value, jobOfferSalary: 0, jobOfferStartDate: '' })}
-            className="text-xs px-3 py-1 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 transition-colors"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Summary card */}
-      {isActive && (
-        <div className="bg-gray-800/60 border border-emerald-800/40 rounded-lg px-4 py-3 space-y-1 text-xs">
-          <div className="flex justify-between text-gray-400">
-            <span>Job starts in</span>
-            <span className="text-white font-medium">~{monthsUntilStart} month{monthsUntilStart != 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex justify-between text-gray-400">
-            <span>Monthly income after start</span>
-            <span className="text-emerald-400 font-bold">{formatCurrency(salary)}</span>
-          </div>
-          <div className="flex justify-between text-gray-400">
-            <span>Side income before start</span>
-            <span className="text-gray-300">{formatCurrency(value.sideIncomeMonthly)}/mo</span>
-          </div>
+        <div className="flex items-center gap-2 mb-1.5">
+          <label className="text-xs text-gray-400 shrink-0">Start date</label>
+          <input
+            type="date" min={minDate}
+            value={startDate}
+            onChange={e => update('jobOfferStartDate', e.target.value)}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+          />
         </div>
-      )}
-
-      {/* Impact */}
-      {isActive && delta !== null && (
-        <div className={`rounded-lg px-4 py-3 text-sm border ${
-          delta > 0
-            ? 'bg-emerald-950/40 border-emerald-700/40 text-emerald-300'
-            : delta < 0
-            ? 'bg-red-950/40 border-red-700/40 text-red-300'
-            : 'bg-gray-700/40 border-gray-600 text-gray-400'
-        }`}>
-          {delta > 0 ? (
-            <>This job extends your runway by <strong>{formatMonths(delta)}</strong> — or eliminates the countdown entirely.</>
-          ) : delta < 0 ? (
-            <>Even with this job, runway shortens by <strong>{formatMonths(Math.abs(delta))}</strong>. Check expenses.</>
-          ) : (
-            <>No runway change — income roughly matches burn rate.</>
+        <div className="flex flex-wrap gap-1.5">
+          {[1, 2, 3, 6].map(mo => {
+            const d = today.add(mo, 'month').format('YYYY-MM-DD')
+            return (
+              <button
+                key={mo}
+                onClick={() => update('jobOfferStartDate', d)}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  startDate === d
+                    ? 'bg-emerald-600 border-emerald-500 text-white'
+                    : 'bg-gray-700/60 border-gray-600 text-gray-400 hover:border-emerald-500'
+                }`}
+              >
+                +{mo}mo
+              </button>
+            )
+          })}
+          {(salary > 0 || startDate) && (
+            <button
+              onClick={() => onChange({ ...value, jobOfferSalary: 0, jobOfferStartDate: '' })}
+              className="text-[10px] px-2 py-0.5 rounded-full border border-gray-600 text-gray-500 hover:border-red-500 hover:text-red-400 transition-colors"
+            >
+              clear
+            </button>
           )}
         </div>
-      )}
+      </div>
 
-      {!isActive && (
-        <p className="text-xs text-gray-600">
-          Enter take-home pay and a start date to see how a job offer reshapes your runway.
-        </p>
+      {/* Compact summary + impact merged */}
+      {isActive && (
+        <div className={`rounded-lg px-3 py-2 text-xs border ${
+          delta > 0
+            ? 'bg-emerald-950/30 border-emerald-700/30'
+            : delta < 0
+            ? 'bg-red-950/30 border-red-700/30'
+            : 'bg-gray-800/40 border-gray-700/40'
+        }`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-gray-400">
+              Starts in ~{monthsUntilStart}mo at {formatCurrency(salary)}/mo
+            </span>
+            {delta !== null && delta !== 0 && (
+              <span className={`font-bold whitespace-nowrap ${delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {delta > 0 ? '+' : ''}{formatMonths(Math.abs(delta))}
+              </span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
