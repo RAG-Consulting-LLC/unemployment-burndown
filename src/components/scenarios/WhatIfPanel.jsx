@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { formatCurrency, formatMonths } from '../../utils/formatters'
 import dayjs from 'dayjs'
 import EmergencyFloorPanel from './EmergencyFloorPanel'
 import BenefitGapPanel from './BenefitGapPanel'
 import ExpenseFreezeDatePanel from './ExpenseFreezeDatePanel'
-import JobOfferPanel from './JobOfferPanel'
 import FreelanceRampPanel from './FreelanceRampPanel'
 import ComparePanel from './ComparePanel'
 
@@ -79,9 +79,15 @@ export default function WhatIfPanel({
   altRunwayMonths,
   assetProceeds,
   unemployment,
+  expenses,
+  subscriptions,
+  creditCards,
   templates,
   currentResult,
   templateResults,
+  jobScenarios,
+  onJobScenariosChange,
+  jobScenarioResults,
 }) {
   const [openId, setOpenId] = useState(null)
 
@@ -97,8 +103,23 @@ export default function WhatIfPanel({
     ? altRunwayMonths - baseRunwayMonths
     : null
 
+  // Cost of living breakdown
+  const essentialTotal = (expenses || [])
+    .filter(e => e.essential)
+    .reduce((sum, e) => sum + (Number(e.monthlyAmount) || 0), 0)
+  const nonEssentialTotal = (expenses || [])
+    .filter(e => !e.essential)
+    .reduce((sum, e) => sum + (Number(e.monthlyAmount) || 0), 0)
+  const subsTotal = (subscriptions || [])
+    .filter(s => s.active !== false)
+    .reduce((sum, s) => sum + (Number(s.monthlyAmount) || 0), 0)
+  const ccMinTotal = (creditCards || [])
+    .reduce((sum, c) => sum + (Number(c.minimumPayment) || 0), 0)
+  const totalCostOfLiving = essentialTotal + nonEssentialTotal + subsTotal + ccMinTotal
+
   const hasChanges =
     value.expenseReductionPct > 0 ||
+    (value.expenseRaisePct || 0) > 0 ||
     value.sideIncomeMonthly > 0 ||
     assetProceeds > 0 ||
     (Number(value.emergencyFloor) || 0) > 0 ||
@@ -110,9 +131,10 @@ export default function WhatIfPanel({
     (Number(value.partnerIncomeMonthly) || 0) > 0
 
   // Scenario activity checks & summaries
-  const basicsActive = value.expenseReductionPct > 0 || value.sideIncomeMonthly > 0 || assetProceeds > 0
+  const basicsActive = value.expenseReductionPct > 0 || (value.expenseRaisePct || 0) > 0 || value.sideIncomeMonthly > 0 || assetProceeds > 0
   const basicsSummary = [
     value.expenseReductionPct > 0 && `-${value.expenseReductionPct}%`,
+    (value.expenseRaisePct || 0) > 0 && `+${value.expenseRaisePct}% raise`,
     value.sideIncomeMonthly > 0 && `+${formatCurrency(value.sideIncomeMonthly)}/mo`,
     assetProceeds > 0 && `+${formatCurrency(assetProceeds)} assets`,
   ].filter(Boolean).join(', ')
@@ -134,10 +156,9 @@ export default function WhatIfPanel({
     ? `until ${dayjs(value.freezeDate).format('MMM D')}`
     : ''
 
-  const jobSalary = Number(value.jobOfferSalary) || 0
-  const jobActive = jobSalary > 0 && !!value.jobOfferStartDate
-  const jobSummary = jobActive
-    ? `${formatCurrency(jobSalary)}/mo from ${dayjs(value.jobOfferStartDate).format('MMM \'YY')}`
+  const jobScenariosActive = (jobScenarios || []).length > 0
+  const jobScenariosSummary = jobScenariosActive
+    ? `${jobScenarios.length} scenario${jobScenarios.length !== 1 ? 's' : ''}`
     : ''
 
   const ramp = value.freelanceRamp || []
@@ -176,36 +197,94 @@ export default function WhatIfPanel({
         isOpen={openId === 'basics'} onToggle={() => toggle('basics')}
       >
         <div className="space-y-3 pt-2">
-          {/* Expense cut - compact inline */}
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <label className="text-xs text-gray-400">Cut expenses</label>
-              <input
-                type="range" min="0" max="100" step="5"
-                value={value.expenseReductionPct}
-                onChange={e => update('expenseReductionPct', Number(e.target.value))}
-                className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
-              />
-              <span className="text-xs font-bold text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded min-w-[3rem] text-center">
-                {value.expenseReductionPct}%
-              </span>
+          {/* Cost of living summary */}
+          {totalCostOfLiving > 0 && (
+            <div className="rounded border p-2.5 space-y-1.5" style={{ background: 'var(--bg-input)', borderColor: 'var(--border-subtle)' }}>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Monthly Cost of Living</span>
+                <span className="text-sm font-bold" style={{ color: 'var(--accent-blue)' }}>
+                  {formatCurrency(totalCostOfLiving)}<span className="text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>/mo</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                <div className="flex justify-between">
+                  <span>Essential</span>
+                  <span className="font-medium">{formatCurrency(essentialTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Discretionary</span>
+                  <span className="font-medium">{formatCurrency(nonEssentialTotal)}</span>
+                </div>
+                {subsTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Subscriptions</span>
+                    <span className="font-medium">{formatCurrency(subsTotal)}</span>
+                  </div>
+                )}
+                {ccMinTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>CC Min. Payments</span>
+                    <span className="font-medium">{formatCurrency(ccMinTotal)}</span>
+                  </div>
+                )}
+              </div>
+              {((value.expenseRaisePct || 0) > 0 || value.expenseReductionPct > 0) && (
+                <div className="pt-1 mt-0.5 flex justify-between items-center text-[10px]" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Adjusted total</span>
+                  <span className="font-bold text-xs" style={{ color: (value.expenseRaisePct || 0) > value.expenseReductionPct ? 'var(--accent-red, #ef4444)' : 'var(--accent-emerald)' }}>
+                    {formatCurrency(
+                      essentialTotal
+                      + (nonEssentialTotal * (1 - (value.expenseReductionPct || 0) / 100))
+                      + subsTotal + ccMinTotal
+                      + totalCostOfLiving * ((value.expenseRaisePct || 0) / 100)
+                    )}/mo
+                  </span>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Expense cut - compact inline */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400 shrink-0">Cut expenses</label>
+            <input
+              type="range" min="0" max="100" step="5"
+              value={value.expenseReductionPct}
+              onChange={e => update('expenseReductionPct', Number(e.target.value))}
+              className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
+            />
+            <span className="text-xs font-bold text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded min-w-[3rem] text-center">
+              {value.expenseReductionPct}%
+            </span>
+          </div>
+
+          {/* Expense raise - compact inline */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400 shrink-0">Raise expenses</label>
+            <input
+              type="range" min="0" max="50" step="1"
+              value={value.expenseRaisePct || 0}
+              onChange={e => update('expenseRaisePct', Number(e.target.value))}
+              className="flex-1 h-1.5 cursor-pointer"
+              style={{ accentColor: '#f97316' }}
+            />
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded min-w-[3rem] text-center" style={{ color: '#f97316', background: 'rgba(249,115,22,0.12)' }}>
+              +{value.expenseRaisePct || 0}%
+            </span>
           </div>
 
           {/* Side income - compact inline */}
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <label className="text-xs text-gray-400">Side income</label>
-              <input
-                type="range" min="0" max="5000" step="100"
-                value={value.sideIncomeMonthly}
-                onChange={e => update('sideIncomeMonthly', Number(e.target.value))}
-                className="flex-1 h-1.5 accent-emerald-500 cursor-pointer"
-              />
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-900/30 px-1.5 py-0.5 rounded min-w-[3rem] text-center">
-                {formatCurrency(value.sideIncomeMonthly)}
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400 shrink-0">Side income</label>
+            <input
+              type="range" min="0" max="5000" step="100"
+              value={value.sideIncomeMonthly}
+              onChange={e => update('sideIncomeMonthly', Number(e.target.value))}
+              className="flex-1 h-1.5 accent-emerald-500 cursor-pointer"
+            />
+            <span className="text-xs font-bold text-emerald-400 bg-emerald-900/30 px-1.5 py-0.5 rounded min-w-[3rem] text-center">
+              {formatCurrency(value.sideIncomeMonthly)}
+            </span>
           </div>
 
           {assetProceeds > 0 && (
@@ -258,16 +337,28 @@ export default function WhatIfPanel({
       </ScenarioRow>
 
       <ScenarioRow
-        id="job" icon="💼" label="Job Offer" color="border-l-emerald-500"
-        isActive={jobActive} summary={jobSummary} delta={jobActive ? delta : null}
-        isOpen={openId === 'job'} onToggle={() => toggle('job')}
+        id="scenarios" icon="💼" label="Job Scenarios" color="border-l-emerald-500"
+        isActive={jobScenariosActive} summary={jobScenariosSummary} delta={null}
+        isOpen={openId === 'scenarios'} onToggle={() => toggle('scenarios')}
       >
-        <JobOfferPanel
-          value={value}
-          onChange={onChange}
-          baseRunwayMonths={baseRunwayMonths}
-          altRunwayMonths={altRunwayMonths}
-        />
+        <div className="text-center py-4 space-y-2">
+          <Link
+            to="/job-scenarios"
+            className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+            style={{
+              borderColor: 'var(--accent-blue)',
+              background: 'var(--accent-blue)' + '18',
+              color: 'var(--accent-blue)',
+            }}
+          >
+            Open Job Scenarios Dashboard &rarr;
+          </Link>
+          {jobScenariosActive && (
+            <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+              {jobScenarios.length} scenario{jobScenarios.length !== 1 ? 's' : ''} configured
+            </p>
+          )}
+        </div>
       </ScenarioRow>
 
       <ScenarioRow

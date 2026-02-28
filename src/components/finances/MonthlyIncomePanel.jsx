@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
+export default function MonthlyIncomePanel({ items, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(items, onChange)
 
   function updateItem(id, field, val) {
@@ -57,7 +58,9 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
           </div>
 
           <div className="space-y-2">
-            {items.map(item => (
+            {items.map(item => {
+              const dimmed = filterPersonId && !matchesPersonFilter(item.assignedTo, filterPersonId)
+              return (
               <div
                 key={item.id}
                 className={`flex flex-col gap-2 sm:grid sm:items-center rounded-lg transition-all ${
@@ -66,7 +69,7 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
                   overedId === item.id && draggingId !== item.id
                     ? 'ring-2 ring-emerald-500/50 ring-inset'
                     : ''
-                }`}
+                } ${dimmed ? 'opacity-25' : ''}`}
                 style={{ gridTemplateColumns: '20px 1fr 110px 120px 120px 32px 32px 32px' }}
                 {...getItemProps(item.id)}
               >
@@ -149,7 +152,7 @@ export default function MonthlyIncomePanel({ items, onChange, people = [] }) {
                   </button>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </>
       )}

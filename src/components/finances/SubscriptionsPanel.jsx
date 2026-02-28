@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,7 +14,7 @@ function TrashIcon() {
   )
 }
 
-export default function SubscriptionsPanel({ subscriptions, onChange, people = [] }) {
+export default function SubscriptionsPanel({ subscriptions, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(subscriptions, onChange)
 
   function updateSub(id, field, val) {
@@ -60,6 +61,7 @@ export default function SubscriptionsPanel({ subscriptions, onChange, people = [
       <div className="space-y-2">
         {subscriptions.map(sub => {
           const isActive = sub.active !== false
+          const dimmed = filterPersonId && !matchesPersonFilter(sub.assignedTo, filterPersonId)
           return (
             <div
               key={sub.id}
@@ -69,7 +71,7 @@ export default function SubscriptionsPanel({ subscriptions, onChange, people = [
                 overedId === sub.id && draggingId !== sub.id
                   ? 'ring-2 ring-blue-500/50 ring-inset'
                   : ''
-              } ${!isActive ? 'opacity-50' : ''}`}
+              } ${!isActive ? 'opacity-50' : ''} ${dimmed ? 'opacity-25' : ''}`}
               {...getItemProps(sub.id)}
             >
               {/* Subrow 1: drag · toggle · name */}

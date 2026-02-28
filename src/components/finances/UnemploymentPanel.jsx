@@ -1,8 +1,9 @@
 import { formatCurrency, formatDate } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import dayjs from 'dayjs'
 import AssigneeSelect from '../people/AssigneeSelect'
 
-export default function UnemploymentPanel({ value, onChange, furloughDate, onFurloughDateChange, people = [] }) {
+export default function UnemploymentPanel({ value, onChange, furloughDate, onFurloughDateChange, people = [], filterPersonId = null }) {
   function update(field, val) {
     onChange({ ...value, [field]: val })
   }
@@ -11,8 +12,10 @@ export default function UnemploymentPanel({ value, onChange, furloughDate, onFur
   const monthlyBenefits = (Number(value.weeklyAmount) || 0) * (52 / 12)
   const endDate = dayjs(value.startDate).add(Number(value.durationWeeks) || 0, 'week')
 
+  const dimmed = filterPersonId && !matchesPersonFilter(value.assignedTo, filterPersonId)
+
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 transition-opacity ${dimmed ? 'opacity-25' : ''}`}>
       {onFurloughDateChange && (
         <div>
           <label className="block text-xs text-gray-500 mb-1 font-medium">Simulation Start Date</label>
