@@ -307,17 +307,33 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
 }
 
 export default function App() {
-  const { authed, error: authError, login, logout } = useAuth()
+  const { authed, user, error: authError, loading, mfaPending, login, verifyMfa, register, logout, cancelMfa } = useAuth()
   const location = useLocation()
 
   // Privacy policy is accessible without authentication
   if (location.pathname === '/privacy') return <PrivacyPolicyPage />
 
-  if (!authed) return <LoginScreen onLogin={login} error={authError} />
-  return <AuthenticatedApp logout={logout} />
+  // Show loading state while checking token
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-page)' }}>
+      <div className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading...</div>
+    </div>
+  )
+
+  if (!authed) return (
+    <LoginScreen
+      onLogin={login}
+      onRegister={register}
+      onVerifyMfa={verifyMfa}
+      onCancelMfa={cancelMfa}
+      mfaPending={mfaPending}
+      error={authError}
+    />
+  )
+  return <AuthenticatedApp logout={logout} user={user} />
 }
 
-function AuthenticatedApp({ logout }) {
+function AuthenticatedApp({ logout, user }) {
   const [presentationMode, setPresentationMode] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
   const [viewSettings, setViewSettings] = useState(DEFAULT_VIEW)
