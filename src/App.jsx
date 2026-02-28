@@ -172,6 +172,7 @@ const DEFAULT_VIEW = {
     monthlyIncome:   true,
     assets:          true,
     plaidAccounts:   true,
+    retirement:      true,
   },
 }
 
@@ -290,6 +291,7 @@ function AuthenticatedApp({ logout }) {
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
   const [jobScenarios, setJobScenarios] = useState(DEFAULTS.jobScenarios)
+  const [retirement, setRetirement] = useState(DEFAULTS.retirement)
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
   const [filterPersonId, setFilterPersonId] = useState(null)
@@ -323,7 +325,7 @@ function AuthenticatedApp({ logout }) {
   const plaid = usePlaid({ onSyncComplete: handlePlaidSync })
 
   function buildSnapshot() {
-    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement }
   }
 
   function applySnapshot(snapshot) {
@@ -343,6 +345,7 @@ function AuthenticatedApp({ logout }) {
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
     if (snapshot.creditCards) setCreditCards(snapshot.creditCards)
     if (snapshot.jobScenarios) setJobScenarios(snapshot.jobScenarios.map(migrateJobScenario))
+    if (snapshot.retirement) setRetirement({ ...DEFAULTS.retirement, ...snapshot.retirement })
   }
 
   // Full state = live snapshot + saved templates (written to / read from file)
@@ -391,7 +394,7 @@ function AuthenticatedApp({ logout }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -432,6 +435,12 @@ function AuthenticatedApp({ logout }) {
   const summarizeSubs         = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
   const summarizeCCs          = (v) => _allSum(v, 'minimumPayment') + ' min/mo'
   const summarizeJobScenarios = (v) => `${v.length} scenario${v.length !== 1 ? 's' : ''}`
+  const summarizeRetirement = (v) => {
+    const target = v.targetMode === 'income'
+      ? Math.round((Number(v.desiredAnnualIncome) || 0) / ((Number(v.withdrawalRatePct) || 4) / 100))
+      : Number(v.targetNestEgg) || 0
+    return `age ${v.currentAge}→${v.targetRetirementAge}, target ${_fmtM(target)}, ${_fmtM(v.monthlyContribution)}/mo`
+  }
 
   // Tracked change handlers — capture before/after summary + granular diff details
   function track(getter, setter, label, summarize, diffFn) {
@@ -463,6 +472,7 @@ function AuthenticatedApp({ logout }) {
   const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
   const onCreditCardsChange  = track(() => creditCards,     setCreditCards,     'Credit cards',       summarizeCCs,          diffArray)
   const onJobScenariosChange = track(() => jobScenarios,    setJobScenarios,    'Job scenarios',      summarizeJobScenarios, diffArray)
+  const onRetirementChange   = track(() => retirement,      setRetirement,      'Retirement plan',    summarizeRetirement,   diffObject)
 
   // Derived: total cash from all active accounts
   const totalSavings = savingsAccounts
@@ -740,6 +750,8 @@ function AuthenticatedApp({ logout }) {
               plaid={plaid}
               filterPersonId={filterPersonId}
               onFilterPersonChange={setFilterPersonId}
+              retirement={retirement}
+              onRetirementChange={onRetirementChange}
             />
           </>
         } />

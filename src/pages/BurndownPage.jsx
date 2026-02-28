@@ -11,6 +11,7 @@ import AssetsPanel from '../components/finances/AssetsPanel'
 import InvestmentsPanel from '../components/finances/InvestmentsPanel'
 import SubscriptionsPanel from '../components/finances/SubscriptionsPanel'
 import CreditCardsPanel from '../components/finances/CreditCardsPanel'
+import RetirementPanel from '../components/finances/RetirementPanel'
 import WhatIfPanel from '../components/scenarios/WhatIfPanel'
 import PeopleManager from '../components/people/PeopleManager'
 import ConnectedAccountsPanel from '../components/plaid/ConnectedAccountsPanel'
@@ -35,6 +36,7 @@ export default function BurndownPage({
   subscriptions,
   creditCards,
   jobScenarios,
+  retirement,
   // Change handlers
   onPeopleChange,
   onSavingsChange,
@@ -50,6 +52,7 @@ export default function BurndownPage({
   onSubsChange,
   onCreditCardsChange,
   onJobScenariosChange,
+  onRetirementChange,
   // What-if extras
   furloughDate,
   assetProceeds,
@@ -245,6 +248,13 @@ export default function BurndownPage({
       {viewSettings.sections.assets && (
         <SectionCard id="sec-assets" title="Sellable Assets" className="scroll-mt-20">
           <AssetsPanel assets={assets} onChange={onAssetsChange} people={people} />
+        </SectionCard>
+      )}
+
+      {/* Retirement planning — full width */}
+      {viewSettings.sections.retirement && (
+        <SectionCard id="sec-retirement" title="Retirement Planning" className="scroll-mt-20">
+          <RetirementPanel data={retirement} onChange={onRetirementChange} people={people} />
         </SectionCard>
       )}
 

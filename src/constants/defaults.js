@@ -51,4 +51,17 @@ export const DEFAULTS = {
   creditCards: [],
   plaidMeta: {},
   jobScenarios: [],
+  retirement: {
+    currentAge: 30,
+    targetRetirementAge: 65,
+    currentBalance: 0,
+    monthlyContribution: 500,
+    annualReturnPct: 7,
+    inflationPct: 3,
+    targetMode: 'nestEgg',
+    targetNestEgg: 1000000,
+    desiredAnnualIncome: 40000,
+    withdrawalRatePct: 4,
+    assignedTo: null,
+  },
 }
