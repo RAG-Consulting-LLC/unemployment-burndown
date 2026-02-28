@@ -71,7 +71,7 @@ Globals:
 
   Api:
     Cors:
-      AllowMethods: "'GET,POST,OPTIONS'"
+      AllowMethods: "'GET,POST,PUT,OPTIONS'"
       AllowHeaders: "'Content-Type,Authorization'"
       AllowOrigin: "'*'"
 
@@ -185,6 +185,67 @@ Resources:
           Type: Api
           Properties:
             Path: /plaid/budget
+            Method: get
+
+  # ---------- Data API (secured S3 proxy) ----------
+  GetDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getData.handler
+      CodeUri: .
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref S3Bucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/data
+            Method: get
+
+  PutDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/putData.handler
+      CodeUri: .
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref S3Bucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/data
+            Method: put
+
+  GetStatementsIndexFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getStatements.handler
+      CodeUri: .
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref S3Bucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/statements
+            Method: get
+
+  GetStatementByIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/getStatements.handler
+      CodeUri: .
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref S3Bucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /api/statements/{statementId}
             Method: get
 
 Outputs:

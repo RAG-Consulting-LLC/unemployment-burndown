@@ -28,6 +28,7 @@ import { CommentsProvider } from './context/CommentsContext'
 import CommentsPanel from './components/comments/CommentsPanel'
 import PlaidLinkButton from './components/plaid/PlaidLinkButton'
 import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 
 // Migrate old job scenario shape to enhanced model (backward compat)
 function migrateJobScenario(s) {
@@ -307,6 +308,11 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut }) {
 
 export default function App() {
   const { authed, error: authError, login, logout } = useAuth()
+  const location = useLocation()
+
+  // Privacy policy is accessible without authentication
+  if (location.pathname === '/privacy') return <PrivacyPolicyPage />
+
   if (!authed) return <LoginScreen onLogin={login} error={authError} />
   return <AuthenticatedApp logout={logout} />
 }

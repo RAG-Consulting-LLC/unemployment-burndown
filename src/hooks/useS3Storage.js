@@ -1,19 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const BUCKET_URL = 'https://rag-consulting-burndown.s3.us-west-1.amazonaws.com'
-const DATA_KEY   = 'data.json'
-const DATA_URL   = `${BUCKET_URL}/${DATA_KEY}`
+const API_BASE = import.meta.env.VITE_PLAID_API_URL || ''
 
 /**
- * Cloud storage backed by a public S3 bucket.
+ * Cloud storage backed by the backend API (which proxies to S3).
+ * No longer accesses S3 directly — all data flows through authenticated API.
  *
  * status values:
- *   'loading'   – initial fetch in progress
- *   'connected' – ready; last save succeeded (or no data yet)
- *   'saving'    – PUT in progress
- *   'error'     – last operation failed
- *
- * restoreData: parsed JSON loaded on mount. Consumed and cleared by caller.
+ *   'loading'   - initial fetch in progress
+ *   'connected' - ready; last save succeeded (or no data yet)
+ *   'saving'    - PUT in progress
+ *   'error'     - last operation failed
  */
 export function useS3Storage() {
   const [status, setStatus]           = useState('loading')
@@ -21,22 +18,18 @@ export function useS3Storage() {
   const [restoreData, setRestoreData] = useState(null)
   const [errorMsg, setErrorMsg]       = useState(null)
 
-  // Load existing data on mount
+  // Load existing data on mount via API
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(DATA_URL, { cache: 'no-cache' })
-        if (res.status === 404 || res.status === 403) {
-          // Bucket empty — first run, no data yet
-          setStatus('connected')
-          return
-        }
+        const res = await fetch(`${API_BASE}/api/data`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        setRestoreData(data)
+        if (data) {
+          setRestoreData(data)
+        }
         setStatus('connected')
       } catch (e) {
-        // Network errors still let the app work — just won't cloud-save
         setStatus('error')
         setErrorMsg(e.message)
       }
@@ -49,7 +42,7 @@ export function useS3Storage() {
   const save = useCallback(async (data) => {
     try {
       setStatus('saving')
-      const res = await fetch(DATA_URL, {
+      const res = await fetch(`${API_BASE}/api/data`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data, null, 2),
