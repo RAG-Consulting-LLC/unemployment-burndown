@@ -7,7 +7,7 @@
 const CURRENCY = new Set([
   'monthlyAmount', 'amount', 'weeklyAmount', 'minimumPayment',
   'balance', 'estimatedValue', 'sideIncomeMonthly', 'partnerIncomeMonthly',
-  'jobOfferSalary', 'emergencyFloor',
+  'jobOfferSalary', 'emergencyFloor', 'monthlySalary',
 ])
 const PERCENT = new Set(['expenseReductionPct', 'apr'])
 const WEEKS   = new Set(['durationWeeks', 'benefitDelayWeeks', 'benefitCutWeeks'])
@@ -42,6 +42,11 @@ const FIELD_LABEL = {
   category:             'Category',
   name:                 'Name',
   description:          'Description',
+  title:                'Title',
+  employer:             'Employer',
+  monthlySalary:        'Monthly salary',
+  status:               'Status',
+  statusDate:           'Status date',
 }
 
 const SKIP_KEYS = new Set(['id', 'freelanceRamp'])
@@ -56,12 +61,13 @@ function fmtVal(key, val) {
 }
 
 function itemName(item) {
-  return item.category || item.name || item.bank || item.description || String(item.id || '?')
+  return item.category || item.name || item.title || item.bank || item.description || String(item.id || '?')
 }
 
 function itemMainVal(item) {
   const v = item.monthlyAmount ?? item.amount ?? item.weeklyAmount
     ?? item.estimatedValue ?? item.minimumPayment ?? item.balance
+    ?? item.monthlySalary
   return v !== undefined ? '$' + Number(v).toLocaleString() : null
 }
 

@@ -7,6 +7,7 @@ import ExpensePanel from '../components/finances/ExpensePanel'
 import OneTimeExpensePanel from '../components/finances/OneTimeExpensePanel'
 import OneTimeIncomePanel from '../components/finances/OneTimeIncomePanel'
 import MonthlyIncomePanel from '../components/finances/MonthlyIncomePanel'
+import JobsPanel from '../components/finances/JobsPanel'
 import AssetsPanel from '../components/finances/AssetsPanel'
 import InvestmentsPanel from '../components/finances/InvestmentsPanel'
 import SubscriptionsPanel from '../components/finances/SubscriptionsPanel'
@@ -34,9 +35,11 @@ export default function BurndownPage({
   investments,
   subscriptions,
   creditCards,
+  jobs,
   jobScenarios,
   retirement,
   // Change handlers
+  onJobsChange,
   onSavingsChange,
   onUnemploymentChange,
   onFurloughChange,
@@ -53,6 +56,7 @@ export default function BurndownPage({
   onRetirementChange,
   // What-if extras
   furloughDate,
+  derivedStartDate,
   assetProceeds,
   onWhatIfReset,
   templates,
@@ -90,6 +94,14 @@ export default function BurndownPage({
         monthlyBenefits={current.monthlyBenefits}
       />
 
+      {/* Jobs / Employment */}
+      {viewSettings.sections.jobs && (
+        <SectionCard id="sec-jobs" title="Jobs / Employment" className="scroll-mt-20">
+          <JobsPanel jobs={jobs} onChange={onJobsChange} people={people} />
+        </SectionCard>
+      )}
+
+
       {/* Two-column inputs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left column */}
@@ -99,7 +111,7 @@ export default function BurndownPage({
           </SectionCard>
 
           <SectionCard id="sec-unemployment" title="Unemployment Benefits" className="scroll-mt-20">
-            <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} />
+            <UnemploymentPanel value={unemployment} onChange={onUnemploymentChange} furloughDate={furloughDate} onFurloughDateChange={onFurloughChange} people={people} derivedStartDate={derivedStartDate} />
           </SectionCard>
         </div>
 

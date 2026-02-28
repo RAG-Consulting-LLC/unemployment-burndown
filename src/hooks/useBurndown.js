@@ -12,12 +12,12 @@ import dayjs from 'dayjs'
  *   freezeDate             string  ISO date – full spending until here, then reductions kick in
  *   jobOfferSalary         number  monthly take-home after job starts
  *   jobOfferStartDate      string  ISO date job begins
- *   freelanceRamp              array   [{monthOffset, monthlyAmount}] sorted by monthOffset
- *   partnerIncomeMonthly       number  second household income
- *   partnerStartDate           string  ISO date partner income begins
- *   jobOfferAnnualRaisePct     number  annual salary raise % (compounded yearly)
+ *   jobOfferAnnualRaisePct number  annual salary raise % (compounded yearly)
+ *   freelanceRamp          array   [{monthOffset, monthlyAmount}] sorted by monthOffset
+ *   partnerIncomeMonthly   number  second household income
+ *   partnerStartDate       string  ISO date partner income begins
  */
-export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses = [], extraCash = 0, investments = [], oneTimeIncome = [], monthlyIncome = [], startDate = null) {
+export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses = [], extraCash = 0, investments = [], oneTimeIncome = [], monthlyIncome = [], startDate = null, jobs = []) {
   return useMemo(() => {
     const today = dayjs(startDate || new Date())
 
@@ -72,10 +72,11 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       oneTimeIncomeByMonth[slot] = (oneTimeIncomeByMonth[slot] || 0) + (Number(oti.amount) || 0)
     }
 
-    // --- Job offer ---
+    // --- Job offer (what-if scenario) ---
     const jobSalary    = Number(whatIf.jobOfferSalary) || 0
     const jobStartDate = whatIf.jobOfferStartDate ? dayjs(whatIf.jobOfferStartDate) : null
     const jobAnnualRaisePct = Number(whatIf.jobOfferAnnualRaisePct) || 0
+
 
     // --- Freeze date ---
     const freezeDate = whatIf.freezeDate ? dayjs(whatIf.freezeDate) : null
@@ -89,6 +90,19 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
 
     // --- Emergency floor ---
     const emergencyFloor = Number(whatIf.emergencyFloor) || 0
+
+    // --- Helper: compute job income for a given date ---
+    function jobIncomeForDate(d) {
+      let total = 0
+      for (const job of jobs) {
+        if (job.status !== 'active') continue
+        if (!job.monthlySalary) continue
+        if (job.startDate && dayjs(job.startDate).isAfter(d)) continue
+        if (job.endDate && dayjs(job.endDate).isBefore(d)) continue
+        total += Number(job.monthlySalary) || 0
+      }
+      return total
+    }
 
     // --- Simulation ---
     const MAX_MONTHS = 120
@@ -122,12 +136,13 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
         currentDate.isAfter(benefitStart) && currentDate.isBefore(benefitEnd)
       let income = inBenefitWindow ? monthlyBenefits : 0
 
-      // Flat side income (applies until job starts, if job start given)
-      const jobActive = jobStartDate && !currentDate.isBefore(jobStartDate)
-      if (!jobActive) income += sideIncome
+      // Job income from jobs array
+      const jobIncomeThisMonth = jobIncomeForDate(currentDate)
+      income += jobIncomeThisMonth
 
-      // Job offer salary (with annual raise compounding)
-      if (jobActive) {
+      // Job offer salary (what-if scenario, with annual raise compounding)
+      const jobOfferActive = jobStartDate && !currentDate.isBefore(jobStartDate)
+      if (jobOfferActive) {
         if (jobAnnualRaisePct > 0 && jobStartDate) {
           const monthsSinceStart = currentDate.diff(jobStartDate, 'month')
           const fullYears = Math.floor(monthsSinceStart / 12)
@@ -138,6 +153,9 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
           income += jobSalary
         }
       }
+
+      // Flat side income (applies when no job income from either source)
+      if (jobIncomeThisMonth === 0 && !jobOfferActive) income += sideIncome
 
       // Partner income
       const partnerActive = partnerStartDate && !currentDate.isBefore(partnerStartDate)
@@ -202,7 +220,7 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
         oneTimeCost: oneTimeCost > 0 ? Math.round(oneTimeCost) : undefined,
         oneTimeIncome: oneTimeIncomeThisMonth > 0 ? Math.round(oneTimeIncomeThisMonth) : undefined,
         inBenefitWindow,
-        jobActive: !!jobActive,
+        jobActive: jobIncomeThisMonth > 0,
       })
 
       if (effectiveBalance <= 0 && i >= (runoutMonth || 0) + 3) break
@@ -218,10 +236,14 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
         return true
       })
       .reduce((s, src) => s + (Number(src.monthlyAmount) || 0), 0)
-    const jobActiveNow = jobStartDate && !today.isBefore(jobStartDate)
+    const currentJobIncome = jobIncomeForDate(today)
     const partnerActiveNow = partnerStartDate && !today.isBefore(partnerStartDate)
     let currentIncome = (currentInBenefit ? monthlyBenefits : 0) + activeMonthlyIncomeNow
-    if (jobActiveNow) {
+    if (currentJobIncome > 0) {
+      currentIncome += currentJobIncome
+    }
+    const jobOfferActiveNow = jobStartDate && !today.isBefore(jobStartDate)
+    if (jobOfferActiveNow) {
       if (jobAnnualRaisePct > 0 && jobStartDate) {
         const monthsNow = today.diff(jobStartDate, 'month')
         const yearsNow = Math.floor(Math.max(0, monthsNow) / 12)
@@ -231,12 +253,14 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       } else {
         currentIncome += jobSalary
       }
-    } else {
+    }
+    if (currentJobIncome === 0 && !jobOfferActiveNow) {
       currentIncome += sideIncome
     }
     if (partnerActiveNow) currentIncome += partnerIncome
     const currentNetBurn = effectiveExpenses + monthlyInvestments - currentIncome
     const totalMonthlyIncome = activeMonthlyIncomeNow
+    const totalJobIncome = currentJobIncome
 
     return {
       dataPoints,
@@ -247,9 +271,10 @@ export function useBurndown(savings, unemployment, expenses, whatIf, oneTimeExpe
       monthlyBenefits,
       monthlyInvestments,
       totalMonthlyIncome,
+      totalJobIncome,
       benefitEnd: benefitEnd.toDate(),
       benefitStart: benefitStart.toDate(),
       emergencyFloor,
     }
-  }, [savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome, monthlyIncome, startDate])
+  }, [savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome, monthlyIncome, startDate, jobs])
 }

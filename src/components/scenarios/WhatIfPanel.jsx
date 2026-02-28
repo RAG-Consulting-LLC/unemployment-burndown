@@ -126,7 +126,6 @@ export default function WhatIfPanel({
     (Number(value.benefitDelayWeeks) || 0) > 0 ||
     (Number(value.benefitCutWeeks) || 0) > 0 ||
     !!value.freezeDate ||
-    ((Number(value.jobOfferSalary) || 0) > 0 && !!value.jobOfferStartDate) ||
     (value.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0) ||
     (Number(value.partnerIncomeMonthly) || 0) > 0
 

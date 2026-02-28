@@ -48,7 +48,7 @@ function migrateJobScenario(s) {
 // Pure burndown computation (mirrors useBurndown logic without React hooks).
 // Used inside useMemo to compute template results for the Compare tab.
 // ---------------------------------------------------------------------------
-function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome = [], monthlyIncome = [], startDate = null) {
+function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpenses, extraCash, investments, oneTimeIncome = [], monthlyIncome = [], startDate = null, jobs = []) {
   const today = dayjs(startDate || new Date())
 
   const rawBenefitStart = dayjs(unemployment.startDate)
@@ -69,11 +69,24 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
   const monthlyInvestments = investments.filter(inv => inv.active).reduce((s, inv) => s + (Number(inv.monthlyAmount) || 0), 0)
   const emergencyFloor     = Number(whatIf.emergencyFloor) || 0
   const freezeDate         = whatIf.freezeDate ? dayjs(whatIf.freezeDate) : null
-  const jobSalary          = Number(whatIf.jobOfferSalary) || 0
-  const jobStartDate       = whatIf.jobOfferStartDate ? dayjs(whatIf.jobOfferStartDate) : null
   const partnerIncome      = Number(whatIf.partnerIncomeMonthly) || 0
   const partnerStartDate   = whatIf.partnerStartDate ? dayjs(whatIf.partnerStartDate) : null
   const freelanceRamp      = Array.isArray(whatIf.freelanceRamp) ? whatIf.freelanceRamp : []
+  const jobSalary          = Number(whatIf.jobOfferSalary) || 0
+  const jobStartDate       = whatIf.jobOfferStartDate ? dayjs(whatIf.jobOfferStartDate) : null
+  const jobAnnualRaisePct  = Number(whatIf.jobOfferAnnualRaisePct) || 0
+
+  function jobIncomeForDate(d) {
+    let total = 0
+    for (const job of jobs) {
+      if (job.status !== 'active') continue
+      if (!job.monthlySalary) continue
+      if (job.startDate && dayjs(job.startDate).isAfter(d)) continue
+      if (job.endDate && dayjs(job.endDate).isBefore(d)) continue
+      total += Number(job.monthlySalary) || 0
+    }
+    return total
+  }
 
   const oneTimeByMonth = {}
   for (const ote of (oneTimeExpenses || [])) {
@@ -107,9 +120,19 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
     const currentDate = today.add(i, 'month')
     const inBenefitWindow = currentDate.isAfter(benefitStart) && currentDate.isBefore(benefitEnd)
     let income = inBenefitWindow ? monthlyBenefits : 0
-    const jobActive = jobStartDate && !currentDate.isBefore(jobStartDate)
-    if (!jobActive) income += sideIncome
-    if (jobActive) income += jobSalary
+    const jobIncomeThisMonth = jobIncomeForDate(currentDate)
+    income += jobIncomeThisMonth
+    const jobOfferActive = jobStartDate && !currentDate.isBefore(jobStartDate)
+    if (jobOfferActive) {
+      if (jobAnnualRaisePct > 0 && jobStartDate) {
+        const monthsSinceStart = currentDate.diff(jobStartDate, 'month')
+        const fullYears = Math.floor(monthsSinceStart / 12)
+        income += fullYears > 0 ? jobSalary * Math.pow(1 + jobAnnualRaisePct / 100, fullYears) : jobSalary
+      } else {
+        income += jobSalary
+      }
+    }
+    if (jobIncomeThisMonth === 0 && !jobOfferActive) income += sideIncome
     const partnerActive = partnerStartDate && !currentDate.isBefore(partnerStartDate)
     if (partnerActive) income += partnerIncome
     for (const src of monthlyIncome) {
@@ -149,7 +172,21 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
   }
 
   const currentInBenefit = today.isAfter(benefitStart) && today.isBefore(benefitEnd)
-  const currentNetBurn = effectiveExpenses + monthlyInvestments - ((currentInBenefit ? monthlyBenefits : 0) + sideIncome)
+  const currentJobIncome = jobIncomeForDate(today)
+  const jobOfferActiveNow = jobStartDate && !today.isBefore(jobStartDate)
+  let currentIncome = currentInBenefit ? monthlyBenefits : 0
+  if (currentJobIncome > 0) currentIncome += currentJobIncome
+  if (jobOfferActiveNow) {
+    if (jobAnnualRaisePct > 0 && jobStartDate) {
+      const monthsNow = today.diff(jobStartDate, 'month')
+      const yearsNow = Math.floor(Math.max(0, monthsNow) / 12)
+      currentIncome += yearsNow > 0 ? jobSalary * Math.pow(1 + jobAnnualRaisePct / 100, yearsNow) : jobSalary
+    } else {
+      currentIncome += jobSalary
+    }
+  }
+  if (currentJobIncome === 0 && !jobOfferActiveNow) currentIncome += sideIncome
+  const currentNetBurn = effectiveExpenses + monthlyInvestments - currentIncome
 
   return {
     dataPoints, runoutDate, totalRunwayMonths: runoutMonth,
@@ -163,6 +200,7 @@ function computeBurndown(savings, unemployment, expenses, whatIf, oneTimeExpense
 const DEFAULT_VIEW = {
   chartLines: { allExpenses: true, essentialsOnly: true, baseline: true },
   sections: {
+    jobs:          true,
     whatif:        true,
     subscriptions: true,
     creditCards:   true,
@@ -290,6 +328,7 @@ function AuthenticatedApp({ logout }) {
   const [creditCards, setCreditCards] = useState(DEFAULTS.creditCards)
   const [oneTimeIncome, setOneTimeIncome] = useState(DEFAULTS.oneTimeIncome)
   const [monthlyIncome, setMonthlyIncome] = useState(DEFAULTS.monthlyIncome)
+  const [jobs, setJobs] = useState(DEFAULTS.jobs)
   const [jobScenarios, setJobScenarios] = useState(DEFAULTS.jobScenarios)
   const [retirement, setRetirement] = useState(DEFAULTS.retirement)
   const [comments, setComments] = useState({})
@@ -325,7 +364,7 @@ function AuthenticatedApp({ logout }) {
   const plaid = usePlaid({ onSyncComplete: handlePlaidSync })
 
   function buildSnapshot() {
-    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement }
+    return { furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement }
   }
 
   function applySnapshot(snapshot) {
@@ -340,6 +379,7 @@ function AuthenticatedApp({ logout }) {
     if (snapshot.oneTimeExpenses) setOneTimeExpenses(snapshot.oneTimeExpenses)
     if (snapshot.oneTimeIncome) setOneTimeIncome(snapshot.oneTimeIncome)
     if (snapshot.monthlyIncome) setMonthlyIncome(snapshot.monthlyIncome)
+    if (snapshot.jobs) setJobs(snapshot.jobs)
     if (snapshot.assets) setAssets(snapshot.assets)
     if (snapshot.investments) setInvestments(snapshot.investments)
     if (snapshot.subscriptions) setSubscriptions(snapshot.subscriptions)
@@ -394,7 +434,7 @@ function AuthenticatedApp({ logout }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -422,7 +462,6 @@ function AuthenticatedApp({ logout }) {
     if (v.expenseReductionPct)                           parts.push(`${v.expenseReductionPct}% cut`)
     if (v.expenseRaisePct)                               parts.push(`+${v.expenseRaisePct}% raise`)
     if (v.sideIncomeMonthly)                             parts.push(`+${_fmtM(v.sideIncomeMonthly)}/mo side`)
-    if (v.jobOfferSalary && v.jobOfferStartDate)         parts.push(`job ${_fmtM(v.jobOfferSalary)}/mo`)
     if (v.partnerIncomeMonthly && v.partnerStartDate)    parts.push(`partner ${_fmtM(v.partnerIncomeMonthly)}/mo`)
     if (v.emergencyFloor)                                parts.push(`floor ${_fmtM(v.emergencyFloor)}`)
     return parts.length ? parts.join(', ') : 'baseline'
@@ -430,6 +469,11 @@ function AuthenticatedApp({ logout }) {
   const summarizeOneTimeExp   = (v) => `${v.length} item${v.length !== 1 ? 's' : ''} · ${_allSum(v, 'amount')}`
   const summarizeOneTimeInc   = (v) => `${v.length} item${v.length !== 1 ? 's' : ''} · ${_allSum(v, 'amount')}`
   const summarizeMonthlyInc   = (v) => _allSum(v, 'monthlyAmount') + '/mo'
+  const summarizeJobs         = (v) => {
+    const active = v.filter(j => j.status === 'active').length
+    const totalSalary = v.filter(j => j.status === 'active').reduce((s, j) => s + (Number(j.monthlySalary) || 0), 0)
+    return `${active} active · ${_fmtM(totalSalary)}/mo`
+  }
   const summarizeAssets       = (v) => `${v.length} asset${v.length !== 1 ? 's' : ''}`
   const summarizeInvestments  = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
   const summarizeSubs         = (v) => _activeSum(v, 'monthlyAmount') + '/mo'
@@ -467,6 +511,7 @@ function AuthenticatedApp({ logout }) {
   const onOneTimeExpChange   = track(() => oneTimeExpenses, setOneTimeExpenses, 'One-time expenses',  summarizeOneTimeExp,   diffArray)
   const onOneTimeIncChange   = track(() => oneTimeIncome,   setOneTimeIncome,   'One-time income',    summarizeOneTimeInc,   diffArray)
   const onMonthlyIncChange   = track(() => monthlyIncome,   setMonthlyIncome,   'Monthly income',     summarizeMonthlyInc,   diffArray)
+  const onJobsChange         = track(() => jobs,            setJobs,            'Jobs',               summarizeJobs,         diffArray)
   const onAssetsChange       = track(() => assets,          setAssets,          'Assets',             summarizeAssets,       diffArray)
   const onInvestmentsChange  = track(() => investments,     setInvestments,     'Investments',        summarizeInvestments,  diffArray)
   const onSubsChange         = track(() => subscriptions,   setSubscriptions,   'Subscriptions',      summarizeSubs,         diffArray)
@@ -484,6 +529,17 @@ function AuthenticatedApp({ logout }) {
     .filter(a => a.includedInWhatIf)
     .reduce((sum, a) => sum + (Number(a.estimatedValue) || 0), 0)
 
+  // Derived: auto-derive simulation start date from earliest job status change
+  const derivedStartDate = useMemo(() => {
+    const statusDates = jobs
+      .filter(j => j.status !== 'active' && j.statusDate)
+      .map(j => j.statusDate)
+      .sort()
+    return statusDates.length > 0 ? statusDates[0] : null
+  }, [jobs])
+
+  const effectiveStartDate = furloughDate || derivedStartDate || dayjs().format('YYYY-MM-DD')
+
   // Merge active subscriptions + credit card minimum payments into expenses
   const expensesWithSubs = [
     ...expenses,
@@ -497,10 +553,10 @@ function AuthenticatedApp({ logout }) {
 
   // Base calculation (no what-if, no asset sales) — used for delta display
   const baseWhatIf = { ...DEFAULTS.whatIf }
-  const base = useBurndown(totalSavings, unemployment, expensesWithSubs, baseWhatIf, oneTimeExpenses, 0, investments, oneTimeIncome, monthlyIncome, furloughDate)
+  const base = useBurndown(totalSavings, unemployment, expensesWithSubs, baseWhatIf, oneTimeExpenses, 0, investments, oneTimeIncome, monthlyIncome, effectiveStartDate, jobs)
 
   // With all what-if scenarios applied
-  const current = useBurndown(totalSavings, unemployment, expensesWithSubs, whatIf, oneTimeExpenses, assetProceeds, investments, oneTimeIncome, monthlyIncome, furloughDate)
+  const current = useBurndown(totalSavings, unemployment, expensesWithSubs, whatIf, oneTimeExpenses, assetProceeds, investments, oneTimeIncome, monthlyIncome, effectiveStartDate, jobs)
 
   // Pre-compute burndown results for every saved template (for Compare tab)
   const templateResults = useMemo(() => {
@@ -530,7 +586,8 @@ function AuthenticatedApp({ logout }) {
       const tOneTimeIncome = s.oneTimeIncome || []
       const tMonthlyIncome = s.monthlyIncome || []
       const tFurloughDate = s.furloughDate || DEFAULTS.furloughDate
-      results[t.id] = computeBurndown(tSavings, tUnemployment, tExpenses, tWhatIf, tOneTime, tAssetProceeds, tInvestments, tOneTimeIncome, tMonthlyIncome, tFurloughDate)
+      const tJobs = s.jobs || []
+      results[t.id] = computeBurndown(tSavings, tUnemployment, tExpenses, tWhatIf, tOneTime, tAssetProceeds, tInvestments, tOneTimeIncome, tMonthlyIncome, tFurloughDate, tJobs)
     }
     return results
   }, [templates])
@@ -570,7 +627,6 @@ function AuthenticatedApp({ logout }) {
     (Number(whatIf.benefitDelayWeeks) || 0) > 0 ||
     (Number(whatIf.benefitCutWeeks) || 0) > 0 ||
     !!whatIf.freezeDate ||
-    ((Number(whatIf.jobOfferSalary) || 0) > 0 && !!whatIf.jobOfferStartDate) ||
     (whatIf.freelanceRamp || []).some(t => (Number(t.monthlyAmount) || 0) > 0) ||
     ((Number(whatIf.partnerIncomeMonthly) || 0) > 0 && !!whatIf.partnerStartDate)
 
@@ -703,6 +759,7 @@ function AuthenticatedApp({ logout }) {
               oneTimeIncome={oneTimeIncome}
               monthlyIncome={monthlyIncome}
               unemployment={unemployment}
+              jobs={jobs}
               people={people}
               filterPersonId={filterPersonId}
             />
@@ -724,7 +781,9 @@ function AuthenticatedApp({ logout }) {
               investments={investments}
               subscriptions={subscriptions}
               creditCards={creditCards}
+              jobs={jobs}
               jobScenarios={jobScenarios}
+              onJobsChange={onJobsChange}
               onSavingsChange={onSavingsChange}
               onUnemploymentChange={onUnemploymentChange}
               onFurloughChange={onFurloughChange}
@@ -739,6 +798,7 @@ function AuthenticatedApp({ logout }) {
               onCreditCardsChange={onCreditCardsChange}
               onJobScenariosChange={onJobScenariosChange}
               furloughDate={furloughDate}
+              derivedStartDate={derivedStartDate}
               assetProceeds={assetProceeds}
               onWhatIfReset={() => {
                 const snap = activeTemplateId ? getSnapshot(activeTemplateId) : null
