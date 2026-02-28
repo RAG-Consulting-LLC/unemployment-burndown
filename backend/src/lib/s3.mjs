@@ -2,7 +2,6 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 
 const BUCKET = process.env.S3_BUCKET || 'rag-consulting-burndown'
 const REGION = process.env.S3_REGION || 'us-west-1'
-const DATA_KEY = 'data.json'
 
 let _s3 = null
 
@@ -12,13 +11,21 @@ function getS3() {
   return _s3
 }
 
-/**
- * Read and parse data.json from S3.
- * Returns null if the file doesn't exist.
- */
-export async function readDataJson() {
+function dataKey(orgId) {
+  return orgId ? `orgs/${orgId}/data.json` : 'data.json'
+}
+
+function statementsIndexKey(orgId) {
+  return orgId ? `orgs/${orgId}/statements/index.json` : 'statements/index.json'
+}
+
+function statementKey(orgId, statementId) {
+  return orgId ? `orgs/${orgId}/statements/${statementId}.json` : `statements/${statementId}.json`
+}
+
+async function s3Get(key) {
   try {
-    const res = await getS3().send(new GetObjectCommand({ Bucket: BUCKET, Key: DATA_KEY }))
+    const res = await getS3().send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
     const body = await res.Body.transformToString('utf-8')
     return JSON.parse(body)
   } catch (err) {
@@ -30,13 +37,31 @@ export async function readDataJson() {
 }
 
 /**
- * Write data.json back to S3.
+ * Read and parse data.json from S3, scoped to org.
+ * Returns null if the file doesn't exist.
  */
-export async function writeDataJson(data) {
+export async function readDataJson(orgId) {
+  return s3Get(dataKey(orgId))
+}
+
+/**
+ * Write data.json back to S3, scoped to org.
+ */
+export async function writeDataJson(data, orgId) {
   await getS3().send(new PutObjectCommand({
     Bucket: BUCKET,
-    Key: DATA_KEY,
+    Key: dataKey(orgId),
     Body: JSON.stringify(data, null, 2),
     ContentType: 'application/json',
   }))
+}
+
+/**
+ * Read a statement from S3, scoped to org.
+ * If statementId is provided, reads that specific statement.
+ * Otherwise reads the statements index.
+ */
+export async function readStatement(orgId, statementId) {
+  const key = statementId ? statementKey(orgId, statementId) : statementsIndexKey(orgId)
+  return s3Get(key)
 }

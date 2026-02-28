@@ -30,6 +30,12 @@ import PlaidLinkButton from './components/plaid/PlaidLinkButton'
 import ConnectedAccountsPanel from './components/plaid/ConnectedAccountsPanel'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import MfaSetup from './components/auth/MfaSetup'
+import OrgSetup from './components/auth/OrgSetup'
+import OrgSettings from './components/org/OrgSettings'
+import { NotificationsProvider } from './context/NotificationsContext'
+import NotificationBell from './components/notifications/NotificationBell'
+import NotificationPanel from './components/notifications/NotificationPanel'
+import ToastContainer from './components/notifications/ToastContainer'
 
 // Migrate old job scenario shape to enhanced model (backward compat)
 function migrateJobScenario(s) {
@@ -216,7 +222,7 @@ const DEFAULT_VIEW = {
   },
 }
 
-function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut, onSecurity }) {
+function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut, onSecurity, onHousehold }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -299,6 +305,22 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut, onSecurity 
             <span className="flex-1 text-left">Security</span>
           </button>
 
+          <button
+            onClick={() => { onHousehold(); setOpen(false) }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-input)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span className="flex-1 text-left">Household</span>
+          </button>
+
           <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
 
           <button
@@ -322,7 +344,7 @@ function HeaderOverflow({ onLogOpen, logCount, onPresent, onSignOut, onSecurity 
 }
 
 export default function App() {
-  const { authed, user, error: authError, loading, mfaPending, login, verifyMfa, register, logout, cancelMfa } = useAuth()
+  const { authed, user, error: authError, loading, mfaPending, hasOrg, login, verifyMfa, register, logout, cancelMfa, createOrg, joinOrg } = useAuth()
   const location = useLocation()
 
   // Privacy policy is accessible without authentication
@@ -345,6 +367,17 @@ export default function App() {
       error={authError}
     />
   )
+
+  // User is authenticated but hasn't joined/created an org yet
+  if (!hasOrg) return (
+    <OrgSetup
+      onCreateOrg={createOrg}
+      onJoinOrg={joinOrg}
+      onLogout={logout}
+      error={authError}
+    />
+  )
+
   return <AuthenticatedApp logout={logout} user={user} />
 }
 
@@ -352,6 +385,7 @@ function AuthenticatedApp({ logout, user }) {
   const [presentationMode, setPresentationMode] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
   const [securityOpen, setSecurityOpen] = useState(false)
+  const [orgOpen, setOrgOpen] = useState(false)
   const [mfaEnabled, setMfaEnabled] = useState(user?.mfaEnabled || false)
   const [viewSettings, setViewSettings] = useState(DEFAULT_VIEW)
   const [furloughDate, setFurloughDate] = useState(DEFAULTS.furloughDate)
@@ -373,6 +407,7 @@ function AuthenticatedApp({ logout, user }) {
   const [comments, setComments] = useState({})
   const [defaultPersonId, setDefaultPersonId] = useState(null)
   const [filterPersonId, setFilterPersonId] = useState(null)
+  const [notificationPreferences, setNotificationPreferences] = useState(DEFAULTS.notificationPreferences)
 
   const {
     templates,
@@ -438,6 +473,7 @@ function AuthenticatedApp({ logout, user }) {
       comments,
       defaultPersonId,
       activityLog: logEntries,
+      notificationPreferences,
     }
   }
 
@@ -449,6 +485,7 @@ function AuthenticatedApp({ logout, user }) {
     if (data.comments && typeof data.comments === 'object') setComments(data.comments)
     if (data.defaultPersonId != null) setDefaultPersonId(data.defaultPersonId)
     if (Array.isArray(data.activityLog)) loadEntries(data.activityLog)
+    if (data.notificationPreferences) setNotificationPreferences({ ...DEFAULTS.notificationPreferences, ...data.notificationPreferences })
   }
 
   // When S3 storage loads data on mount, apply it
@@ -473,7 +510,7 @@ function AuthenticatedApp({ logout, user }) {
       }
     }, 1500)
     return () => clearTimeout(autoSaveTimer.current)
-  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId]) // eslint-disable-line
+  }, [furloughDate, people, savingsAccounts, unemployment, expenses, whatIf, oneTimeExpenses, oneTimeIncome, monthlyIncome, jobs, assets, investments, subscriptions, creditCards, jobScenarios, retirement, templates, comments, defaultPersonId, notificationPreferences]) // eslint-disable-line
 
   function handleSave(id)      { overwrite(id, buildSnapshot()); addEntry('save', `Template "${templates.find(t => t.id === id)?.name || id}" overwritten`) }
   function handleSaveNew(name) { saveNew(name, buildSnapshot()); addEntry('save', `New template "${name}" saved`) }
@@ -670,6 +707,12 @@ function AuthenticatedApp({ logout, user }) {
     ((Number(whatIf.partnerIncomeMonthly) || 0) > 0 && !!whatIf.partnerStartDate)
 
   return (
+    <NotificationsProvider
+      burndown={current}
+      preferences={notificationPreferences}
+      onPreferencesChange={setNotificationPreferences}
+      initialBalance={totalSavings}
+    >
     <CommentsProvider
       comments={comments}
       onCommentsChange={setComments}
@@ -678,6 +721,8 @@ function AuthenticatedApp({ logout, user }) {
       onDefaultPersonChange={setDefaultPersonId}
     >
     <CommentsPanel />
+    <NotificationPanel />
+    <ToastContainer />
     <div className="min-h-screen theme-page" style={{ color: 'var(--text-primary)' }}>
       {/* Presentation overlay — rendered outside main layout so it fills the viewport */}
       {presentationMode && (
@@ -738,6 +783,11 @@ function AuthenticatedApp({ logout, user }) {
         </div>
       )}
 
+      {/* Household settings panel */}
+      {orgOpen && (
+        <OrgSettings user={user} onClose={() => setOrgOpen(false)} />
+      )}
+
       <Header
         rightSlot={
           <div className="flex items-center gap-0.5">
@@ -776,6 +826,7 @@ function AuthenticatedApp({ logout, user }) {
                 </span>
               )}
             </button>
+            <NotificationBell />
             <PeopleMenu people={people} onChange={onPeopleChange} />
             <ThemeToggle />
             <ViewMenu value={viewSettings} onChange={setViewSettings} />
@@ -796,6 +847,7 @@ function AuthenticatedApp({ logout, user }) {
               onPresent={() => setPresentationMode(true)}
               onSignOut={logout}
               onSecurity={() => setSecurityOpen(true)}
+              onHousehold={() => setOrgOpen(true)}
             />
           </div>
         }
@@ -906,5 +958,6 @@ function AuthenticatedApp({ logout, user }) {
       </Routes>
     </div>
     </CommentsProvider>
+    </NotificationsProvider>
   )
 }
