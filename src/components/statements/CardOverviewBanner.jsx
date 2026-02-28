@@ -1,3 +1,4 @@
+import { CreditCard } from 'lucide-react'
 import { formatCurrency } from '../../utils/formatters'
 
 const COLOR_MAP = {
@@ -40,7 +41,7 @@ export default function CardOverviewBanner({ creditCards, statementIndex, select
             color: selectedCardId === null ? 'var(--accent-blue)' : 'var(--text-secondary)',
           }}
         >
-          <span className="text-base">💳</span>
+          <CreditCard size={16} strokeWidth={1.75} />
           <span>All Cards</span>
         </button>
 
@@ -71,7 +72,7 @@ export default function CardOverviewBanner({ creditCards, statementIndex, select
                   {getInitials(card.person.name)}
                 </div>
               ) : (
-                <span className="text-base">💳</span>
+                <CreditCard size={16} strokeWidth={1.75} />
               )}
               <div className="text-left">
                 <div>

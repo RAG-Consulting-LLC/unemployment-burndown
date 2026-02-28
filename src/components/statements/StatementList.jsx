@@ -1,3 +1,4 @@
+import { FileText } from 'lucide-react'
 import { formatCurrency } from '../../utils/formatters'
 
 const COLOR_MAP = {
@@ -19,7 +20,7 @@ function getInitials(name) {
 }
 
 function PersonAvatar({ person }) {
-  if (!person) return <span className="text-lg">📄</span>
+  if (!person) return <FileText size={18} strokeWidth={1.75} style={{ color: 'var(--text-muted)' }} />
   const bg = COLOR_MAP[person.color] ?? '#6b7280'
   return (
     <div

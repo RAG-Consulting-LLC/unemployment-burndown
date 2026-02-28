@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PieChart, BarChart3, Store } from 'lucide-react'
 import CategoryDonutChart from './CategoryDonutChart'
 import MonthlySpendingBarChart from './MonthlySpendingBarChart'
 import TopMerchantsChart from './TopMerchantsChart'
@@ -6,19 +7,19 @@ import TopMerchantsChart from './TopMerchantsChart'
 const CHART_DEFS = [
   {
     id: 'categories',
-    icon: '🥧',
+    Icon: PieChart,
     label: 'Categories',
     desc: 'Spending by category across all cards',
   },
   {
     id: 'monthly',
-    icon: '📊',
+    Icon: BarChart3,
     label: 'Monthly Trend',
     desc: 'Total spending per month over time',
   },
   {
     id: 'merchants',
-    icon: '🏪',
+    Icon: Store,
     label: 'Top Merchants',
     desc: 'Where you spend the most',
   },
@@ -76,7 +77,7 @@ export default function StatementChartTabs({ transactions = [], creditCards = []
                 }}
                 title={chart.desc}
               >
-                <span className="text-base leading-none">{chart.icon}</span>
+                <chart.Icon size={15} strokeWidth={1.75} />
                 <span className="hidden sm:inline whitespace-nowrap">{chart.label}</span>
 
                 {isActive && (

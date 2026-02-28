@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { formatCurrency } from '../../utils/formatters'
 import { STATEMENT_CATEGORIES } from '../../constants/categories'
 
@@ -35,8 +36,10 @@ export default function TransactionTable({ transactions = [] }) {
   }
 
   const SortIcon = ({ field }) => {
-    if (sortField !== field) return <span style={{ color: 'var(--text-faint)' }}>&#x2195;</span>
-    return <span style={{ color: 'var(--accent-blue)' }}>{sortDir === 'asc' ? '&#x2191;' : '&#x2193;'}</span>
+    if (sortField !== field) return <ArrowUpDown size={12} strokeWidth={1.75} style={{ color: 'var(--text-faint)', display: 'inline', verticalAlign: 'middle' }} />
+    return sortDir === 'asc'
+      ? <ArrowUp size={12} strokeWidth={2} style={{ color: 'var(--accent-blue)', display: 'inline', verticalAlign: 'middle' }} />
+      : <ArrowDown size={12} strokeWidth={2} style={{ color: 'var(--accent-blue)', display: 'inline', verticalAlign: 'middle' }} />
   }
 
   const usedCategories = useMemo(() => {
