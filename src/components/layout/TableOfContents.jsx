@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 const ALL_SECTIONS = [
   { id: 'sec-runway',       label: 'Runway',        sectionKey: null },
   { id: 'sec-chart',        label: 'Chart',         sectionKey: null },
-  { id: 'sec-household',    label: 'Household',     sectionKey: 'household' },
   { id: 'sec-savings',      label: 'Savings',       sectionKey: null },
   { id: 'sec-plaid',        label: 'Linked Accts',  sectionKey: 'plaidAccounts' },
   { id: 'sec-unemployment', label: 'Benefits',      sectionKey: null },
