@@ -5,12 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.mjs",
+    "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dayjs": "^1.11.13",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
     "lucide-react": "^0.575.0",
+    "plaid": "^28.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-plaid-link": "^3.6.0",
@@ -21,6 +27,7 @@
     "@aws-sdk/client-amplify": "^3.997.0",
     "@tailwindcss/vite": "^4.1.8",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
     "tailwindcss": "^4.1.8",
     "vite": "^6.3.5"
   }
