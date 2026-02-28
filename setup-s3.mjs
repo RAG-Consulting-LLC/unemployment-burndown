@@ -2,7 +2,8 @@ import {
   S3Client,
   CreateBucketCommand,
   PutPublicAccessBlockCommand,
-  PutBucketPolicyCommand,
+  PutBucketEncryptionCommand,
+  DeleteBucketPolicyCommand,
   PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 
@@ -34,55 +35,54 @@ async function setup() {
     }
   }
 
-  // 2. Disable all block-public-access settings
-  console.log("Disabling block public access...");
+  // 2. Enable server-side encryption (SSE-S3)
+  console.log("Enabling default encryption (SSE-S3)...");
+  await s3.send(new PutBucketEncryptionCommand({
+    Bucket: BUCKET,
+    ServerSideEncryptionConfiguration: {
+      Rules: [
+        {
+          ApplyServerSideEncryptionByDefault: {
+            SSEAlgorithm: "AES256",
+          },
+          BucketKeyEnabled: true,
+        },
+      ],
+    },
+  }));
+
+  // 3. Block ALL public access
+  console.log("Blocking all public access...");
   await s3.send(new PutPublicAccessBlockCommand({
     Bucket: BUCKET,
     PublicAccessBlockConfiguration: {
-      BlockPublicAcls: false,
-      IgnorePublicAcls: false,
-      BlockPublicPolicy: false,
-      RestrictPublicBuckets: false,
+      BlockPublicAcls: true,
+      IgnorePublicAcls: true,
+      BlockPublicPolicy: true,
+      RestrictPublicBuckets: true,
     },
   }));
 
-  // 3. Public read + public write bucket policy
-  console.log("Applying bucket policy...");
-  await s3.send(new PutBucketPolicyCommand({
-    Bucket: BUCKET,
-    Policy: JSON.stringify({
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Sid: "PublicReadWrite",
-          Effect: "Allow",
-          Principal: "*",
-          Action: ["s3:GetObject", "s3:PutObject"],
-          Resource: `arn:aws:s3:::${BUCKET}/*`,
-        },
-      ],
-    }),
-  }));
+  // 4. Remove any existing public bucket policy
+  console.log("Removing public bucket policy...");
+  try {
+    await s3.send(new DeleteBucketPolicyCommand({ Bucket: BUCKET }));
+  } catch (e) {
+    // No policy to delete — that's fine
+    if (e.name !== "NoSuchBucketPolicy") {
+      console.log("  (no existing policy to remove)");
+    }
+  }
 
-  // 4. CORS — allow GET and PUT from any origin (data is public)
-  console.log("Applying CORS config...");
-  await s3.send(new PutBucketCorsCommand({
-    Bucket: BUCKET,
-    CORSConfiguration: {
-      CORSRules: [
-        {
-          AllowedOrigins: ["*"],
-          AllowedMethods: ["GET", "PUT", "HEAD"],
-          AllowedHeaders: ["*"],
-          MaxAgeSeconds: 3000,
-        },
-      ],
-    },
-  }));
+  // 5. Remove CORS config (no longer needed — frontend accesses via API)
+  // CORS is only needed if frontend directly accessed S3 (which it no longer does)
+  console.log("Note: CORS not configured — all access goes through API Gateway/backend.");
 
   console.log("\n=== DONE ===");
-  console.log(`Bucket URL: https://${BUCKET}.s3.${REGION}.amazonaws.com`);
-  console.log(`Data URL:   https://${BUCKET}.s3.${REGION}.amazonaws.com/data.json`);
+  console.log(`Bucket: ${BUCKET}`);
+  console.log("  - Encryption: SSE-S3 (AES256) enabled");
+  console.log("  - Public access: BLOCKED");
+  console.log("  - Access: Only via IAM roles (Lambda backend)");
 }
 
 setup().catch(err => {

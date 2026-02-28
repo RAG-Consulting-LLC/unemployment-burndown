@@ -5,6 +5,7 @@ import { existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid'
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -18,7 +19,18 @@ if (!process.env.PLAID_CLIENT_ID) {
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
+
+// ── S3 client for data proxy ──
+const S3_BUCKET = process.env.S3_BUCKET || 'rag-consulting-burndown'
+const S3_REGION = process.env.AWS_REGION || 'us-west-1'
+const s3 = new S3Client({
+  region: S3_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+})
 
 const config = new Configuration({
   basePath: PlaidEnvironments.sandbox,
@@ -237,6 +249,71 @@ app.get('/api/plaid/budget', (req, res) => {
     estCostPerCall: EST_COST_PER_CALL,
     month: new Date().toISOString().slice(0, 7),
   })
+})
+
+// ── Data API (S3 proxy — replaces direct public S3 access) ──
+
+async function s3Get(key) {
+  const res = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }))
+  return JSON.parse(await res.Body.transformToString('utf-8'))
+}
+
+// GET /api/data — read data.json
+app.get('/api/data', async (req, res) => {
+  try {
+    const data = await s3Get('data.json')
+    res.json(data)
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return res.json(null)
+    }
+    console.error('GET /api/data error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/data — write data.json
+app.put('/api/data', async (req, res) => {
+  try {
+    await s3.send(new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: 'data.json',
+      Body: JSON.stringify(req.body, null, 2),
+      ContentType: 'application/json',
+    }))
+    res.json({ saved: true, savedAt: new Date().toISOString() })
+  } catch (err) {
+    console.error('PUT /api/data error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/statements — statements index
+app.get('/api/statements', async (req, res) => {
+  try {
+    const data = await s3Get('statements/index.json')
+    res.json(data)
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return res.json({ version: 1, lastUpdated: null, statements: [] })
+    }
+    console.error('GET /api/statements error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/statements/:id — single statement
+app.get('/api/statements/:id', async (req, res) => {
+  try {
+    const data = await s3Get(`statements/${req.params.id}.json`)
+    res.json(data)
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return res.status(404).json({ error: 'Statement not found' })
+    }
+    console.error('GET /api/statements/:id error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 const PORT = process.env.PLAID_SERVER_PORT || 3001

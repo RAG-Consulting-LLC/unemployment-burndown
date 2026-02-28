@@ -1,28 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const BUCKET_URL = 'https://rag-consulting-burndown.s3.us-west-1.amazonaws.com'
-const INDEX_URL  = `${BUCKET_URL}/statements/index.json`
+const API_BASE = import.meta.env.VITE_PLAID_API_URL || ''
 
 /**
- * Fetches parsed credit card statement data from S3.
- * Loads a lightweight index on mount, then lazy-loads individual statements.
+ * Fetches parsed credit card statement data via the backend API.
+ * No longer accesses S3 directly.
  */
 export function useStatementStorage() {
-  const [index, setIndex]         = useState(null)
+  const [index, setIndex]           = useState(null)
   const [statements, setStatements] = useState({})
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
 
   // Load index on mount
   useEffect(() => {
     async function loadIndex() {
       try {
-        const res = await fetch(INDEX_URL, { cache: 'no-cache' })
-        if (res.status === 404 || res.status === 403) {
-          setIndex({ version: 1, lastUpdated: null, statements: [] })
-          setLoading(false)
-          return
-        }
+        const res = await fetch(`${API_BASE}/api/statements`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         setIndex(data)
@@ -40,8 +34,7 @@ export function useStatementStorage() {
   const loadStatement = useCallback(async (statementId) => {
     if (statements[statementId]) return statements[statementId]
     try {
-      const url = `${BUCKET_URL}/statements/${statementId}.json`
-      const res = await fetch(url, { cache: 'no-cache' })
+      const res = await fetch(`${API_BASE}/api/statements/${statementId}`)
       if (!res.ok) throw new Error(`Failed to load statement ${statementId}`)
       const data = await res.json()
       setStatements(prev => ({ ...prev, [statementId]: data }))
@@ -55,7 +48,7 @@ export function useStatementStorage() {
   // Re-fetch the index (after a new statement is parsed)
   const refreshIndex = useCallback(async () => {
     try {
-      const res = await fetch(INDEX_URL, { cache: 'no-cache' })
+      const res = await fetch(`${API_BASE}/api/statements`)
       if (res.ok) {
         const data = await res.json()
         setIndex(data)
