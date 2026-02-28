@@ -26,6 +26,7 @@ export const DEFAULTS = {
   ],
   whatIf: {
     expenseReductionPct: 0,
+    expenseRaisePct: 0,
     sideIncomeMonthly: 0,
     emergencyFloor: 0,
     benefitDelayWeeks: 0,
@@ -48,7 +49,6 @@ export const DEFAULTS = {
     { id: 103, name: 'Internet', monthlyAmount: 60,  active: true, assignedTo: null },
   ],
   creditCards: [],
-  plaidAccounts: [],
-  plaidTransactions: [],
-  plaidSyncCursor: {},
+  plaidMeta: {},
+  jobScenarios: [],
 }

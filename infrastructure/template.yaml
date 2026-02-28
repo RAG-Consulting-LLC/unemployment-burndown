@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Credit card statement email ingestion pipeline
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: rag-consulting-burndown
+  SESRuleSetName:
+    Type: String
+    Default: statement-ingestion
+  RecipientEmail:
+    Type: String
+    Description: Email address that receives forwarded statements (e.g. statements@mail.yourdomain.com)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 120
+    MemorySize: 512
+
+Resources:
+
+  # Lambda function that parses statement emails
+  StatementParserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: statement-parser
+      Handler: index.handler
+      CodeUri: lambda/statement-parser/
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref BucketName
+          BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - Statement:
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: '*'
+
+  # Permission for S3 to invoke the Lambda
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StatementParserFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${BucketName}
+
+  # SES Receipt Rule Set (must be activated manually or via CLI)
+  SESReceiptRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+    Properties:
+      RuleSetName: !Ref SESRuleSetName
+
+  # SES Receipt Rule: save to S3 then invoke Lambda
+  SESReceiptRule:
+    Type: AWS::SES::ReceiptRule
+    DependsOn: SESReceiptRuleSet
+    Properties:
+      RuleSetName: !Ref SESRuleSetName
+      Rule:
+        Name: ingest-statements
+        Enabled: true
+        Recipients:
+          - !Ref RecipientEmail
+        Actions:
+          - S3Action:
+              BucketName: !Ref BucketName
+              ObjectKeyPrefix: emails/raw/
+        ScanEnabled: true
+
+  # S3 notification to trigger Lambda when new emails land
+  # NOTE: This must be configured on the existing bucket.
+  # If the bucket already exists, add this notification config manually:
+  #   Prefix: emails/raw/
+  #   Event: s3:ObjectCreated:*
+  #   Lambda: StatementParserFunction ARN
+
+Outputs:
+  FunctionArn:
+    Description: Statement parser Lambda ARN
+    Value: !GetAtt StatementParserFunction.Arn
+  SetupInstructions:
+    Description: Post-deploy steps
+    Value: |
+      1. Verify your domain in SES (or the specific recipient email)
+      2. Add MX record pointing to inbound-smtp.<region>.amazonaws.com
+      3. Activate the SES receipt rule set: aws ses set-active-receipt-rule-set --rule-set-name statement-ingestion
+      4. Add S3 event notification on the bucket for prefix 'emails/raw/' to invoke the Lambda
+      5. Forward a test statement email to the configured address

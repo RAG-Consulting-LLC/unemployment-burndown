@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -13,28 +14,7 @@ function TrashIcon() {
   )
 }
 
-function BankIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-blue)' }}>
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-      <line x1="1" y1="10" x2="23" y2="10" />
-    </svg>
-  )
-}
-
-function getPlaidMapping(plaidAccounts, localType, localId) {
-  if (!plaidAccounts) return null
-  for (const inst of plaidAccounts) {
-    for (const acc of inst.accounts) {
-      if (acc.mappedTo?.type === localType && acc.mappedTo?.localId === localId) {
-        return { institution: inst.institutionName, autoSync: acc.autoSync, mask: acc.mask }
-      }
-    }
-  }
-  return null
-}
-
-export default function SavingsPanel({ accounts, onChange, people = [], plaidAccounts = [] }) {
+export default function SavingsPanel({ accounts, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(accounts, onChange)
 
   function updateAccount(id, field, val) {
@@ -77,6 +57,7 @@ export default function SavingsPanel({ accounts, onChange, people = [], plaidAcc
       <div className="space-y-2">
         {accounts.map(account => {
           const isActive = account.active !== false
+          const dimmed = filterPersonId && !matchesPersonFilter(account.assignedTo, filterPersonId)
           return (
             <div
               key={account.id}
@@ -86,7 +67,7 @@ export default function SavingsPanel({ accounts, onChange, people = [], plaidAcc
                 overedId === account.id && draggingId !== account.id
                   ? 'ring-2 ring-blue-500/50 ring-inset'
                   : ''
-              } ${!isActive ? 'opacity-50' : ''}`}
+              } ${!isActive ? 'opacity-50' : ''} ${dimmed ? 'opacity-25' : ''}`}
               {...getItemProps(account.id)}
             >
               {/* Subrow 1: drag · toggle · name */}
@@ -120,29 +101,15 @@ export default function SavingsPanel({ accounts, onChange, people = [], plaidAcc
               </div>
               {/* Subrow 2: amount · assignee · trash */}
               <div className="flex items-center gap-2 sm:contents">
-                {(() => {
-                  const linked = getPlaidMapping(plaidAccounts, 'savingsAccounts', account.id)
-                  return (
-                    <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500 relative">
-                      {linked && (
-                        <span className="mr-1 flex-shrink-0" title={`Linked to ${linked.institution}${linked.mask ? ` ****${linked.mask}` : ''}${linked.autoSync ? ' (auto-sync)' : ''}`}>
-                          <BankIcon />
-                        </span>
-                      )}
-                      <span className="text-gray-500 text-sm mr-1">$</span>
-                      {linked?.autoSync ? (
-                        <span className="text-white text-sm">{formatCurrency(account.amount).replace('$', '')}</span>
-                      ) : (
-                        <CurrencyInput
-                          value={account.amount}
-                          onChange={val => updateAccount(account.id, 'amount', val)}
-                          className="bg-transparent text-white text-sm w-full outline-none"
-                          min="0"
-                        />
-                      )}
-                    </div>
-                  )
-                })()}
+                <div className="flex-1 sm:flex-none flex items-center bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus-within:border-blue-500">
+                  <span className="text-gray-500 text-sm mr-1">$</span>
+                  <CurrencyInput
+                    value={account.amount}
+                    onChange={val => updateAccount(account.id, 'amount', val)}
+                    className="bg-transparent text-white text-sm w-full outline-none"
+                    min="0"
+                  />
+                </div>
                 <AssigneeSelect
                   people={people}
                   value={account.assignedTo ?? null}

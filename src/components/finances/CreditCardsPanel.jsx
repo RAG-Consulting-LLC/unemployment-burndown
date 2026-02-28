@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom'
 import { formatCurrency } from '../../utils/formatters'
+import { matchesPersonFilter } from '../../utils/personFilter'
 import { useDragReorder } from '../../hooks/useDragReorder'
 import DragHandle from '../layout/DragHandle'
 import AssigneeSelect from '../people/AssigneeSelect'
@@ -14,7 +16,7 @@ function TrashIcon() {
 }
 
 /** Small labeled input used in the details row */
-function DetailField({ label, prefix, suffix, value, onChange, min, max, step, placeholder, type = 'number' }) {
+function DetailField({ label, prefix, suffix, value, onChange, min, max, step, placeholder, type = 'number', maxLength }) {
   return (
     <label className="flex flex-col gap-0.5 min-w-0">
       <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
@@ -44,6 +46,7 @@ function DetailField({ label, prefix, suffix, value, onChange, min, max, step, p
             min={min}
             max={max}
             step={step}
+            maxLength={maxLength}
             placeholder={placeholder ?? '—'}
           />
         )}
@@ -79,28 +82,7 @@ function UtilBadge({ balance, limit }) {
   )
 }
 
-function BankIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-blue)' }}>
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-      <line x1="1" y1="10" x2="23" y2="10" />
-    </svg>
-  )
-}
-
-function getPlaidMapping(plaidAccounts, localType, localId) {
-  if (!plaidAccounts) return null
-  for (const inst of plaidAccounts) {
-    for (const acc of inst.accounts) {
-      if (acc.mappedTo?.type === localType && acc.mappedTo?.localId === localId) {
-        return { institution: inst.institutionName, autoSync: acc.autoSync, mask: acc.mask }
-      }
-    }
-  }
-  return null
-}
-
-export default function CreditCardsPanel({ cards, onChange, people = [], plaidAccounts = [] }) {
+export default function CreditCardsPanel({ cards, onChange, people = [], filterPersonId = null }) {
   const { dragHandleProps, getItemProps, draggingId, overedId } = useDragReorder(cards, onChange)
 
   function updateCard(id, field, val) {
@@ -120,6 +102,7 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
       creditLimit: 0,
       apr: 0,
       statementCloseDay: '',
+      last4: '',
       assignedTo: null,
     }])
   }
@@ -146,7 +129,9 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
         </p>
       ) : (
         <div className="space-y-3">
-          {cards.map(card => (
+          {cards.map(card => {
+            const dimmed = filterPersonId && !matchesPersonFilter(card.assignedTo, filterPersonId)
+            return (
             <div
               key={card.id}
               className={`rounded-xl border transition-all ${
@@ -155,7 +140,7 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
                 overedId === card.id && draggingId !== card.id
                   ? 'ring-2 ring-blue-500/50'
                   : ''
-              }`}
+              } ${dimmed ? 'opacity-25' : ''}`}
               style={{ background: 'var(--bg-input)', borderColor: 'var(--border-input)' }}
               {...getItemProps(card.id)}
             >
@@ -190,38 +175,24 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
                 {/* Mobile subrow 2 / Desktop inline: balance + min pmt + assignee + trash */}
                 <div className="flex items-center gap-2 sm:contents">
                   {/* Balance owed */}
-                  {(() => {
-                    const linked = getPlaidMapping(plaidAccounts, 'creditCards', card.id)
-                    return (
-                      <div
-                        className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
-                        style={{
-                          background: 'var(--bg-page)',
-                          border: '1px solid var(--border-input)',
-                          minWidth: '80px',
-                        }}
-                      >
-                        {linked && (
-                          <span className="mr-1 flex-shrink-0" title={`Linked to ${linked.institution}${linked.mask ? ` ****${linked.mask}` : ''}${linked.autoSync ? ' (auto-sync)' : ''}`}>
-                            <BankIcon />
-                          </span>
-                        )}
-                        <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
-                        {linked?.autoSync ? (
-                          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{formatCurrency(card.balance).replace('$', '')}</span>
-                        ) : (
-                          <CurrencyInput
-                            value={card.balance}
-                            onChange={val => updateCard(card.id, 'balance', val)}
-                            className="bg-transparent text-sm w-full outline-none"
-                            style={{ color: 'var(--text-primary)' }}
-                            min="0"
-                            placeholder="Balance"
-                          />
-                        )}
-                      </div>
-                    )
-                  })()}
+                  <div
+                    className="flex-1 sm:flex-none sm:w-[120px] flex items-center rounded-lg px-2 py-2 focus-within:ring-1 focus-within:ring-blue-500/60"
+                    style={{
+                      background: 'var(--bg-page)',
+                      border: '1px solid var(--border-input)',
+                      minWidth: '80px',
+                    }}
+                  >
+                    <span className="text-sm mr-1 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>$</span>
+                    <CurrencyInput
+                      value={card.balance}
+                      onChange={val => updateCard(card.id, 'balance', val)}
+                      className="bg-transparent text-sm w-full outline-none"
+                      style={{ color: 'var(--text-primary)' }}
+                      min="0"
+                      placeholder="Balance"
+                    />
+                  </div>
 
                   {/* Min payment */}
                   <div
@@ -243,12 +214,22 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
                     />
                   </div>
 
-                  {/* Assignee + comment + delete */}
+                  {/* Assignee + statements + comment + delete */}
                   <AssigneeSelect
                     people={people}
                     value={card.assignedTo ?? null}
                     onChange={val => updateCard(card.id, 'assignedTo', val)}
                   />
+                  <Link
+                    to={`/credit-cards?card=${card.id}`}
+                    className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded transition-colors"
+                    style={{ color: 'var(--accent-blue)', opacity: 0.7 }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+                    title="View statements"
+                  >
+                    Stmts
+                  </Link>
                   <CommentButton itemId={`card_${card.id}`} label={card.name || 'Credit Card'} />
                   <button
                     onClick={() => deleteCard(card.id)}
@@ -295,10 +276,19 @@ export default function CreditCardsPanel({ cards, onChange, people = [], plaidAc
                   step={1}
                   placeholder="e.g. 15"
                 />
+                <DetailField
+                  label="Last 4 Digits"
+                  type="text"
+                  value={card.last4 ?? ''}
+                  onChange={val => updateCard(card.id, 'last4', String(val).replace(/\D/g, '').slice(0, 4))}
+                  placeholder="1234"
+                  maxLength={4}
+                />
                 <UtilBadge balance={Number(card.balance) || 0} limit={Number(card.creditLimit) || 0} />
               </div>
             </div>
-          ))}
+          )})}
+
         </div>
       )}
 
